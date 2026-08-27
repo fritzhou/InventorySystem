@@ -105,6 +105,7 @@ def test_history_serializes_a_movement_response(client, db):
                 "is_active": True,
             },
             "receipt_number": None,
+            "po_number": None,
         }],
         "page": 1,
         "page_size": 20,

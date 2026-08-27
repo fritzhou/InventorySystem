@@ -28,6 +28,9 @@ def test_full_receive_and_zero_stock_cost(client, db):
     assert response.status_code == 200 and response.json()['status'] == 'RECEIVED'
     db.refresh(p); assert p.current_stock == 4 and p.cost_price == Decimal('7.25')
     movement = db.scalar(select(InventoryMovement)); assert (movement.stock_before, movement.stock_after, movement.reference_type) == (0, 4, 'PURCHASE_ORDER')
+    history = client.get('/api/inventory/movements')
+    assert history.status_code == 200
+    assert history.json()['items'][0]['po_number'] == po['po_number']
 
 def test_multiple_partial_receives_weighted_average_and_repeat_rejected(client, db):
     p = product(db); po, _ = draft(client, [p]); order(client, po)
