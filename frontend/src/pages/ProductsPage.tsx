@@ -7,7 +7,7 @@ import { ProductTable } from '../components/ProductTable'
 import { api, ApiError } from '../services/api'
 import { useProducts } from '../hooks/useProducts'
 import type { Category } from '../types/category'
-import type { Product, ProductInput, ProductUpdateInput } from '../types/product'
+import type { ExternalProduct, Product, ProductInput, ProductUpdateInput } from '../types/product'
 
 export function ProductsPage() {
   const [searchInput, setSearchInput] = useState('')
@@ -28,7 +28,9 @@ export function ProductsPage() {
   const [scannerKey, setScannerKey] = useState(0)
   const [scannedBarcode, setScannedBarcode] = useState('')
   const [scannedProduct, setScannedProduct] = useState<Product | null>(null)
-  const [scanStatus, setScanStatus] = useState<'scanning' | 'looking-up' | 'found' | 'unknown' | 'error'>('scanning')
+  const [externalProduct, setExternalProduct] = useState<ExternalProduct | null>(null)
+  const [suggestedCategoryId, setSuggestedCategoryId] = useState('')
+  const [scanStatus, setScanStatus] = useState<'scanning' | 'looking-up' | 'found' | 'external' | 'unknown' | 'error'>('scanning')
   const [scanError, setScanError] = useState('')
 
   useEffect(() => {
@@ -43,15 +45,24 @@ export function ProductsPage() {
   const submitSearch = (event: FormEvent) => { event.preventDefault(); setSearch(searchInput) }
 
   const openScanner = () => {
-    setScannedBarcode(''); setScannedProduct(null); setScanStatus('scanning'); setScanError('')
+    setScannedBarcode(''); setScannedProduct(null); setExternalProduct(null); setSuggestedCategoryId(''); setScanStatus('scanning'); setScanError('')
     setScannerKey((key) => key + 1); setIsScannerOpen(true)
   }
   const closeScanner = () => setIsScannerOpen(false)
   const handleBarcode = async (barcode: string) => {
     setScannedBarcode(barcode); setScanStatus('looking-up'); setScanError('')
     try {
-      const found = await api.getProductByBarcode(barcode)
-      setScannedProduct(found); setScanStatus('found')
+      const lookup = await api.lookupProductByBarcode(barcode)
+      if (lookup.source === 'stockflow' && lookup.product) {
+        setScannedProduct(lookup.product); setScanStatus('found')
+      } else if (lookup.found && lookup.external_product) {
+        const categoryText = lookup.external_product.category_text?.toLocaleLowerCase() ?? ''
+        const suggestion = categories.find((category) => {
+          const name = category.name.toLocaleLowerCase()
+          return categoryText.split(',').some((item) => item.trim() === name) || categoryText.includes(name)
+        })
+        setExternalProduct(lookup.external_product); setSuggestedCategoryId(suggestion?.id ?? ''); setScanStatus('external')
+      } else setScanStatus('unknown')
     } catch (requestError) {
       setScannedProduct(null)
       if (requestError instanceof ApiError && requestError.status === 404) setScanStatus('unknown')
@@ -59,10 +70,10 @@ export function ProductsPage() {
     }
   }
   const retryScanner = () => {
-    setScannedBarcode(''); setScannedProduct(null); setScanStatus('scanning'); setScanError('')
+    setScannedBarcode(''); setScannedProduct(null); setExternalProduct(null); setSuggestedCategoryId(''); setScanStatus('scanning'); setScanError('')
     setScannerKey((key) => key + 1)
   }
-  const addScannedProduct = () => { setIsScannerOpen(false); openCreate(scannedBarcode) }
+  const addScannedProduct = () => { setIsScannerOpen(false); setEditingProduct(null); setFormError(null); setIsFormOpen(true) }
   const editScannedProduct = () => { if (scannedProduct) { setIsScannerOpen(false); openEdit(scannedProduct) } }
 
   const saveProduct = async (values: ProductInput | ProductUpdateInput) => {
@@ -116,12 +127,13 @@ export function ProductsPage() {
         </div>
         <aside className="card categories-card"><div><span className="eyebrow">Organization</span><h2>Categories</h2></div><ul className="category-list">{categories.map((category) => <li key={category.id}><strong>{category.name}</strong><span>{category.description || 'No description'}</span></li>)}</ul>{categories.length === 0 && !categoryError && <p className="muted">Create your first category before adding products.</p>}<CategoryForm isSaving={isCategorySaving} error={categoryError} onSubmit={createCategory} /></aside>
       </div>
-      {isFormOpen && <div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><div className="modal-heading"><div><span className="eyebrow">{editingProduct ? 'Update catalog' : 'Catalog setup'}</span><h2 id="product-form-title">{editingProduct ? 'Edit product' : 'Create product'}</h2></div><button className="icon-button" aria-label="Close" onClick={closeForm}>×</button></div>{categories.length === 0 && <p className="notice">Create a category before adding a product.</p>}<ProductForm categories={categories} product={editingProduct} initialBarcode={editingProduct ? '' : scannedBarcode} isSaving={isSaving} error={formError} onCancel={closeForm} onSubmit={saveProduct} /></section></div>}
+      {isFormOpen && <div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><div className="modal-heading"><div><span className="eyebrow">{editingProduct ? 'Update catalog' : 'Catalog setup'}</span><h2 id="product-form-title">{editingProduct ? 'Edit product' : 'Create product'}</h2></div><button className="icon-button" aria-label="Close" onClick={closeForm}>×</button></div>{categories.length === 0 && <p className="notice">Create a category before adding a product.</p>}<ProductForm categories={categories} product={editingProduct} initialBarcode={editingProduct ? '' : scannedBarcode} initialName={editingProduct ? '' : externalProduct?.product_name ?? ''} initialCategoryId={editingProduct ? '' : suggestedCategoryId} isSaving={isSaving} error={formError} onCancel={closeForm} onSubmit={saveProduct} /></section></div>}
       {isScannerOpen && <div className="modal-backdrop scanner-backdrop" role="presentation"><section className="modal scanner-modal" role="dialog" aria-modal="true" aria-labelledby="scanner-title"><div className="modal-heading"><div><span className="eyebrow">Camera scanner</span><h2 id="scanner-title">Scan barcode</h2></div><button className="icon-button" aria-label="Close scanner" onClick={closeScanner}>×</button></div>
         {scanStatus === 'scanning' && <BarcodeScanner key={scannerKey} onDetected={handleBarcode} />}
-        {scanStatus === 'looking-up' && <div className="scan-result" role="status"><span className="success-mark">✓</span><h3>Barcode detected</h3><code>{scannedBarcode}</code><p>Looking up product…</p></div>}
+        {scanStatus === 'looking-up' && <div className="scan-result" role="status"><span className="success-mark">✓</span><h3>Barcode detected</h3><code>{scannedBarcode}</code><p>Searching product information...</p></div>}
         {scanStatus === 'found' && scannedProduct && <div className="scan-result"><span className="success-mark">✓</span><p className="success-copy">Scan successful</p><h3>{scannedProduct.name}</h3><dl><div><dt>SKU</dt><dd>{scannedProduct.sku}</dd></div><div><dt>Barcode</dt><dd>{scannedProduct.barcode}</dd></div><div><dt>Category</dt><dd>{categories.find((item) => item.id === scannedProduct.category_id)?.name ?? 'Uncategorized'}</dd></div><div><dt>Selling price</dt><dd>${Number(scannedProduct.selling_price).toFixed(2)}</dd></div><div><dt>Current stock</dt><dd>{scannedProduct.current_stock}</dd></div><div><dt>Minimum stock</dt><dd>{scannedProduct.minimum_stock}</dd></div><div><dt>Stock status</dt><dd>{scannedProduct.current_stock === 0 ? 'Out of stock' : scannedProduct.current_stock <= scannedProduct.minimum_stock ? 'Low stock' : 'In stock'}</dd></div></dl><div className="form-actions"><button className="button secondary" onClick={retryScanner}>Retry scanning</button><button className="button primary" onClick={editScannedProduct}>Edit Product</button></div></div>}
-        {scanStatus === 'unknown' && <div className="scan-result"><h3>Product not registered</h3><p>No product is registered with barcode <strong>{scannedBarcode}</strong>.</p><div className="form-actions"><button className="button secondary" onClick={retryScanner}>Retry scanning</button><button className="button primary" onClick={addScannedProduct}>Add Product</button></div></div>}
+        {scanStatus === 'external' && externalProduct && <div className="scan-result external-result"><p className="external-copy">Found from external product database</p>{externalProduct.image_url && <img className="external-product-image" src={externalProduct.image_url} alt="External product preview" />}<h3>{externalProduct.product_name ?? 'Name unavailable'}</h3><dl><div><dt>Barcode</dt><dd>{externalProduct.barcode}</dd></div>{externalProduct.brand && <div><dt>Brand</dt><dd>{externalProduct.brand}</dd></div>}{externalProduct.category_text && <div><dt>Category information</dt><dd>{externalProduct.category_text}</dd></div>}{externalProduct.package_size && <div><dt>Package size</dt><dd>{externalProduct.package_size}</dd></div>}</dl><p className="muted">Review all details and enter SKU, prices, and stock before saving.</p><div className="form-actions"><button className="button secondary" onClick={retryScanner}>Retry scanning</button><button className="button primary" onClick={addScannedProduct}>Add to Inventory</button></div></div>}
+        {scanStatus === 'unknown' && <div className="scan-result"><h3>Product information not found</h3><p>No StockFlow or external product information was found for barcode <strong>{scannedBarcode}</strong>.</p><div className="form-actions"><button className="button secondary" onClick={retryScanner}>Retry scanning</button><button className="button primary" onClick={addScannedProduct}>Add Product</button></div></div>}
         {scanStatus === 'error' && <div className="scan-result"><p className="error" role="alert">{scanError}</p><button className="button secondary" onClick={retryScanner}>Retry scanning</button></div>}
         <button className="button scanner-close" onClick={closeScanner}>Close scanner</button>
       </section></div>}

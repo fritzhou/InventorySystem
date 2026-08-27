@@ -19,7 +19,7 @@ function mockApi() {
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const url = String(input)
     if (url.endsWith('/api/categories')) return jsonResponse(init?.method === 'POST' ? category : [category], init?.method === 'POST' ? 201 : 200)
-    if (url.includes('/api/products/barcode/')) return jsonResponse(product)
+    if (url.includes('/api/products/barcode/')) return jsonResponse({ found: true, source: 'stockflow', product, external_product: null, reason: null })
     if (url.includes('/api/products')) return jsonResponse(init?.method === 'DELETE' ? { ...product, is_active: false } : [product])
     return jsonResponse({ detail: 'Not found' }, 404)
   })
@@ -47,7 +47,7 @@ test('looks up a manually scanned barcode and displays the product without chang
   expect(await screen.findByText('Scan successful')).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: product.name })).toBeInTheDocument()
   expect(screen.getAllByText('Low stock')).toHaveLength(2)
-  expect(fetchMock).toHaveBeenCalledWith(`/api/products/barcode/${product.barcode}`, expect.any(Object))
+  expect(fetchMock).toHaveBeenCalledWith(`/api/products/barcode/${product.barcode}/lookup`, expect.any(Object))
   expect(fetchMock).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: 'PATCH' }))
 })
 
@@ -56,7 +56,7 @@ test('shows an unknown barcode and prefills it when adding a product', async () 
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const url = String(input)
     if (url.endsWith('/api/categories')) return jsonResponse([category])
-    if (url.includes('/api/products/barcode/')) return jsonResponse({ detail: 'Product not found.' }, 404)
+    if (url.includes('/api/products/barcode/')) return jsonResponse({ found: false, source: 'none', product: null, external_product: null, reason: 'not_found' })
     if (url.includes('/api/products')) return jsonResponse([product])
     return jsonResponse({}, 404)
   })
@@ -65,7 +65,7 @@ test('shows an unknown barcode and prefills it when adding a product', async () 
   fireEvent.click(screen.getByRole('button', { name: 'Scan barcode' }))
   fireEvent.change(screen.getByLabelText('Enter barcode manually'), { target: { value: unknown } })
   fireEvent.click(screen.getByRole('button', { name: 'Look up' }))
-  expect(await screen.findByRole('heading', { name: 'Product not registered' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Product information not found' })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Add Product' }))
   expect(screen.getByLabelText(/Barcode/)).toHaveValue(unknown)
 })
@@ -93,4 +93,31 @@ test('sends search and category filters to FastAPI', async () => {
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
     expect.stringContaining(`search=water&category_id=${category.id}`), expect.any(Object),
   ))
+})
+
+test('previews external information and prefills only safe Add Product fields', async () => {
+  const barcode = '5012345678900'
+  const external = { barcode, product_name: 'Oat Bar', brand: 'Example Foods', category_text: 'Snacks, Drinks', package_size: '40 g', image_url: 'https://images.example/oat.jpg' }
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const url = String(input)
+    if (url.endsWith('/api/categories')) return jsonResponse([category])
+    if (url.includes('/api/products/barcode/')) return jsonResponse({ found: true, source: 'open_food_facts', product: null, external_product: external, reason: null })
+    if (url.includes('/api/products')) return jsonResponse([product])
+    return jsonResponse({}, 404)
+  })
+  render(<App />)
+  await screen.findByText('Sparkling Water')
+  fireEvent.click(screen.getByRole('button', { name: 'Scan barcode' }))
+  fireEvent.change(screen.getByLabelText('Enter barcode manually'), { target: { value: barcode } })
+  fireEvent.click(screen.getByRole('button', { name: 'Look up' }))
+  expect(await screen.findByText('Found from external product database')).toBeInTheDocument()
+  expect(screen.getByText('Example Foods')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Inventory' }))
+  expect(screen.getByLabelText('Product name')).toHaveValue('Oat Bar')
+  expect(screen.getByLabelText(/Barcode/)).toHaveValue(barcode)
+  expect(screen.getByLabelText('Category')).toHaveValue(category.id)
+  expect(screen.getByLabelText('Cost price')).toHaveValue(null)
+  expect(screen.getByLabelText('Selling price')).toHaveValue(null)
+  expect(screen.getByLabelText('Opening stock')).toHaveValue(0)
+  expect(screen.getByLabelText('Low-stock threshold')).toHaveValue(0)
 })

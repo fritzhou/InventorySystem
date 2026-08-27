@@ -25,3 +25,20 @@ export interface ProductInput {
 }
 
 export type ProductUpdateInput = Omit<ProductInput, 'current_stock'>
+
+export interface ExternalProduct {
+  barcode: string
+  product_name: string | null
+  brand: string | null
+  category_text: string | null
+  package_size: string | null
+  image_url: string | null
+}
+
+export interface ProductLookup {
+  found: boolean
+  source: 'stockflow' | 'open_food_facts' | 'none'
+  product: Product | null
+  external_product: ExternalProduct | null
+  reason: 'not_found' | 'provider_unavailable' | null
+}

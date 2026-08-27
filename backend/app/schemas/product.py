@@ -68,3 +68,20 @@ class ProductRead(ProductBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class ExternalProductRead(BaseModel):
+    barcode: str
+    product_name: str | None = None
+    brand: str | None = None
+    category_text: str | None = None
+    package_size: str | None = None
+    image_url: str | None = None
+
+
+class ProductLookupRead(BaseModel):
+    found: bool
+    source: str
+    product: ProductRead | None = None
+    external_product: ExternalProductRead | None = None
+    reason: str | None = None
