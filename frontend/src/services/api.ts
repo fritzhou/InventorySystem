@@ -1,6 +1,7 @@
 import type { Category, CategoryInput } from '../types/category'
 import type { Product, ProductInput, ProductLookup, ProductUpdateInput } from '../types/product'
 import type { CheckoutInput, Sale, SalesPage } from '../types/sale'
+import type { InventoryMovement, InventoryMovementPage, MovementType, StockAdjustmentInput } from '../types/inventory'
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -37,6 +38,7 @@ export interface SaleFilters {
   page?: number
   pageSize?: number
 }
+export interface MovementFilters { productId?: string; movementType?: MovementType | ''; search?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }
 
 export const api = {
   getHealth: () => request<{ status: string; service: string }>('/health'),
@@ -62,4 +64,14 @@ export const api = {
     return request<SalesPage>(`/api/sales?${params}`)
   },
   getSale: (id: string) => request<Sale>(`/api/sales/${encodeURIComponent(id)}`),
+  adjustStock: (id: string, adjustment: StockAdjustmentInput) => request<InventoryMovement>(`/api/products/${id}/stock-adjustments`, { method: 'POST', body: JSON.stringify(adjustment) }),
+  getInventoryMovements: ({ productId = '', movementType = '', search = '', startDate = '', endDate = '', page = 1, pageSize = 20 }: MovementFilters = {}) => {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+    if (productId) params.set('product_id', productId)
+    if (movementType) params.set('movement_type', movementType)
+    if (search.trim()) params.set('search', search.trim())
+    if (startDate) params.set('start_date', startDate)
+    if (endDate) params.set('end_date', endDate)
+    return request<InventoryMovementPage>(`/api/inventory/movements?${params}`)
+  },
 }
