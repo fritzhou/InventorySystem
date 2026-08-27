@@ -4,6 +4,7 @@ import { CategoryForm } from '../components/CategoryForm'
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { ProductForm } from '../components/ProductForm'
 import { ProductTable } from '../components/ProductTable'
+import { StockAdjustmentModal } from '../components/StockAdjustmentModal'
 import { api, ApiError } from '../services/api'
 import { useProducts } from '../hooks/useProducts'
 import type { Category } from '../types/category'
@@ -24,6 +25,8 @@ export function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [confirmingProduct, setConfirmingProduct] = useState<Product | null>(null)
+  const [adjustingProduct, setAdjustingProduct] = useState<Product | null>(null)
+  const [adjustmentError, setAdjustmentError] = useState<string | null>(null)
   const [isScannerOpen, setIsScannerOpen] = useState(false)
   const [scannerKey, setScannerKey] = useState(0)
   const [scannedBarcode, setScannedBarcode] = useState('')
@@ -110,6 +113,14 @@ export function ProductsPage() {
     } finally { setIsSaving(false) }
   }
 
+  const adjustStock = async (value: import('../types/inventory').StockAdjustmentInput) => {
+    if (!adjustingProduct) return
+    setIsSaving(true); setAdjustmentError(null)
+    try { await api.adjustStock(adjustingProduct.id, value); setAdjustingProduct(null); refresh() }
+    catch (requestError) { setAdjustmentError(requestError instanceof Error ? requestError.message : 'Stock adjustment could not be completed.') }
+    finally { setIsSaving(false) }
+  }
+
   return (
     <section aria-labelledby="products-heading">
       <div className="page-heading"><div><span className="eyebrow">Inventory catalog</span><h1 id="products-heading">Products</h1><p>Manage product details, pricing, barcodes, and stock thresholds.</p></div><div className="heading-actions"><button className="button secondary" onClick={openScanner}>Scan barcode</button><button className="button primary" onClick={() => openCreate()}>+ New product</button></div></div>
@@ -123,7 +134,7 @@ export function ProductsPage() {
           <div className="list-summary"><strong>{products.length} products</strong>{search && <button className="text-button" onClick={() => { setSearch(''); setSearchInput('') }}>Clear search</button>}</div>
           {isLoading && <p role="status" className="loading">Loading products…</p>}
           {error && <p className="error" role="alert">{error} <button className="text-button" onClick={refresh}>Retry</button></p>}
-          {!isLoading && !error && <ProductTable products={products} categories={categories} onEdit={openEdit} onDeactivate={setConfirmingProduct} />}
+          {!isLoading && !error && <ProductTable products={products} categories={categories} onEdit={openEdit} onDeactivate={setConfirmingProduct} onAdjustStock={(product) => { setAdjustmentError(null); setAdjustingProduct(product) }} />}
         </div>
         <aside className="card categories-card"><div><span className="eyebrow">Organization</span><h2>Categories</h2></div><ul className="category-list">{categories.map((category) => <li key={category.id}><strong>{category.name}</strong><span>{category.description || 'No description'}</span></li>)}</ul>{categories.length === 0 && !categoryError && <p className="muted">Create your first category before adding products.</p>}<CategoryForm isSaving={isCategorySaving} error={categoryError} onSubmit={createCategory} /></aside>
       </div>
@@ -137,6 +148,7 @@ export function ProductsPage() {
         {scanStatus === 'error' && <div className="scan-result"><p className="error" role="alert">{scanError}</p><button className="button secondary" onClick={retryScanner}>Retry scanning</button></div>}
         <button className="button scanner-close" onClick={closeScanner}>Close scanner</button>
       </section></div>}
+      {adjustingProduct && <StockAdjustmentModal product={adjustingProduct} saving={isSaving} error={adjustmentError} onCancel={() => !isSaving && setAdjustingProduct(null)} onConfirm={adjustStock} />}
       {confirmingProduct && <div className="modal-backdrop" role="presentation"><section className="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="deactivate-title"><h2 id="deactivate-title">Deactivate {confirmingProduct.name}?</h2><p>The product will no longer appear in active product searches, but its record will remain available for business history.</p>{formError && <p className="error">{formError}</p>}<div className="form-actions"><button className="button secondary" disabled={isSaving} onClick={() => setConfirmingProduct(null)}>Cancel</button><button className="button danger-button" disabled={isSaving} onClick={deactivate}>{isSaving ? 'Deactivating…' : 'Deactivate product'}</button></div></section></div>}
     </section>
   )

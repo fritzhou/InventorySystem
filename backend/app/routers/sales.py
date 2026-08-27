@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import Product, Sale, SaleItem
+from app.models import InventoryMovement, MovementType, Product, Sale, SaleItem
 from app.schemas.sale import CheckoutCreate, SaleRead, SaleSummary, SalesPage
 
 router = APIRouter(prefix="/api/sales", tags=["sales"])
@@ -111,13 +111,16 @@ def checkout(payload: CheckoutCreate, db: Session = Depends(get_db)) -> Sale:
             amount_tendered=tendered, change_due=(tendered - total).quantize(CENT), payment_method="cash",
         )
         db.add(sale)
+        db.flush()
         for product_id, quantity in quantities.items():
             product = products[product_id]
+            stock_before = product.current_stock
+            stock_after = stock_before - quantity
             line_total = (product.selling_price * quantity).quantize(CENT)
             result = db.execute(
                 update(Product)
-                .where(Product.id == product_id, Product.is_active.is_(True), Product.current_stock >= quantity)
-                .values(current_stock=Product.current_stock - quantity)
+                .where(Product.id == product_id, Product.is_active.is_(True), Product.current_stock == stock_before)
+                .values(current_stock=stock_after)
             )
             if result.rowcount != 1:
                 db.refresh(product)
@@ -128,6 +131,11 @@ def checkout(payload: CheckoutCreate, db: Session = Depends(get_db)) -> Sale:
             sale.items.append(SaleItem(
                 product_id=product.id, product_name=product.name, sku=product.sku,
                 unit_price=product.selling_price, quantity=quantity, line_total=line_total,
+            ))
+            db.add(InventoryMovement(
+                product_id=product.id, movement_type=MovementType.SALE, quantity_change=-quantity,
+                stock_before=stock_before, stock_after=stock_after,
+                reference_type="SALE", reference_id=sale.id,
             ))
         db.commit()
         db.refresh(sale)

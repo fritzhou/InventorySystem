@@ -6,6 +6,7 @@ interface ProductTableProps {
   categories: Category[]
   onEdit: (product: Product) => void
   onDeactivate: (product: Product) => void
+  onAdjustStock: (product: Product) => void
 }
 
 function stockStatus(product: Product) {
@@ -14,7 +15,7 @@ function stockStatus(product: Product) {
   return { label: 'In stock', style: 'ok' }
 }
 
-export function ProductTable({ products, categories, onEdit, onDeactivate }: ProductTableProps) {
+export function ProductTable({ products, categories, onEdit, onDeactivate, onAdjustStock }: ProductTableProps) {
   const categoryNames = new Map(categories.map((category) => [category.id, category.name]))
   if (products.length === 0) return <div className="empty">No products match these filters.</div>
   return (
@@ -29,7 +30,7 @@ export function ProductTable({ products, categories, onEdit, onDeactivate }: Pro
             <td>{categoryNames.get(product.category_id) ?? 'Unknown'}</td>
             <td><strong>₱{Number(product.selling_price).toFixed(2)}</strong><small>Cost ₱{Number(product.cost_price).toFixed(2)}</small></td>
             <td><strong>{product.current_stock}</strong><span className={`stock-status ${status.style}`}>{status.label}</span><small>Minimum {product.minimum_stock}</small></td>
-            <td><div className="row-actions"><button className="text-button" onClick={() => onEdit(product)}>Edit</button>{product.is_active && <button className="text-button danger" onClick={() => onDeactivate(product)}>Deactivate</button>}</div></td>
+            <td><div className="row-actions"><a className="text-button" href={`/inventory?product_id=${product.id}`}>Stock History</a>{product.is_active && <button className="text-button" onClick={() => onAdjustStock(product)}>Adjust Stock</button>}<button className="text-button" onClick={() => onEdit(product)}>Edit</button>{product.is_active && <button className="text-button danger" onClick={() => onDeactivate(product)}>Deactivate</button>}</div></td>
           </tr>
         })}</tbody>
       </table>

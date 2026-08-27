@@ -33,3 +33,4 @@ class Product(Base):
 
     category: Mapped["Category"] = relationship(back_populates="products")  # noqa: F821
     sale_items: Mapped[list["SaleItem"]] = relationship(back_populates="product")  # noqa: F821
+    inventory_movements: Mapped[list["InventoryMovement"]] = relationship(back_populates="product")  # noqa: F821
