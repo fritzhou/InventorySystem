@@ -46,6 +46,7 @@ class SaleItem(Base):
     product_name: Mapped[str] = mapped_column(String(160))
     sku: Mapped[str] = mapped_column(String(64))
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    cost_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     quantity: Mapped[int] = mapped_column(Integer)
     line_total: Mapped[Decimal] = mapped_column(Numeric(12, 2))
 

@@ -114,3 +114,7 @@ cd frontend && npm test
 cd frontend && npm run lint
 cd frontend && npm run build
 ```
+
+## Phase 7 reporting
+
+Dashboard and report date boundaries use `REPORTING_TIMEZONE` (default: `Asia/Manila`) while database timestamps remain UTC. Profit is gross profit only: sale-time revenue less the `sale_items.cost_price` snapshot. The Phase 7 migration deliberately leaves that snapshot null for older sale items because their historical cost cannot be reconstructed reliably. Reports exclude those unknown lines from gross-profit totals and return `profit_complete: false` whenever the selected period includes one; revenue and other metrics remain complete.
