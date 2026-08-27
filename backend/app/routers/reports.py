@@ -113,16 +113,18 @@ def top_products(start_date: date | None = None, end_date: date | None = None,
         .where(Sale.created_at >= start, Sale.created_at < end)
         .group_by(SaleItem.product_id, SaleItem.product_name, SaleItem.sku)
         .order_by(func.sum(SaleItem.quantity).desc(), func.sum(SaleItem.line_total).desc())).all()
-    values = {r[0]: [r[1], r[2], int(r[3]), Decimal(r[4])] for r in rows}
+    # Snapshot identity is intentionally part of the key. A renamed product may
+    # have multiple historically correct report rows under the same product ID.
+    values = {(r[0], r[1], r[2]): [int(r[3]), Decimal(r[4])] for r in rows}
     returned = db.execute(select(SaleReturnItem.product_id, SaleReturnItem.product_name, SaleReturnItem.sku,
         func.sum(SaleReturnItem.quantity), func.sum(SaleReturnItem.refund_amount)).join(SaleReturn)
         .where(SaleReturn.created_at >= start, SaleReturn.created_at < end)
         .group_by(SaleReturnItem.product_id, SaleReturnItem.product_name, SaleReturnItem.sku)).all()
     for product_id, name, sku, quantity, refund in returned:
-        value = values.setdefault(product_id, [name, sku, 0, Decimal("0.00")])
-        value[2] -= int(quantity); value[3] -= Decimal(refund)
-    ordered = sorted(values.items(), key=lambda item: (item[1][2], item[1][3]), reverse=True)[:limit]
-    return [TopProduct(product_id=product_id, product_name=v[0], sku=v[1], quantity_sold=v[2], revenue=v[3]) for product_id, v in ordered]
+        value = values.setdefault((product_id, name, sku), [0, Decimal("0.00")])
+        value[0] -= int(quantity); value[1] -= Decimal(refund)
+    ordered = sorted(values.items(), key=lambda item: (item[1][0], item[1][1]), reverse=True)[:limit]
+    return [TopProduct(product_id=key[0], product_name=key[1], sku=key[2], quantity_sold=v[0], revenue=v[1]) for key, v in ordered]
 
 
 @router.get("/inventory-status", response_model=InventoryStatus)

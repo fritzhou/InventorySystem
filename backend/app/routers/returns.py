@@ -1,6 +1,7 @@
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select, update
@@ -8,6 +9,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
+from app.core.config import get_settings
 from app.models import InventoryMovement, MovementType, Product, Sale, SaleItem, SaleReturn, SaleReturnItem
 from app.schemas.return_ import ReturnsPage, SaleReturnCreate, SaleReturnRead
 
@@ -15,8 +17,15 @@ router = APIRouter(tags=["returns"])
 CENT = Decimal("0.01")
 
 
+def _business_timezone() -> ZoneInfo:
+    try:
+        return ZoneInfo(get_settings().reporting_timezone)
+    except ZoneInfoNotFoundError as exc:
+        raise RuntimeError("Invalid REPORTING_TIMEZONE configuration") from exc
+
+
 def _return_number() -> str:
-    return f"RTN-{datetime.now(timezone.utc):%Y%m%d}-{uuid.uuid4().hex[:4].upper()}"
+    return f"RTN-{datetime.now(_business_timezone()):%Y%m%d}-{uuid.uuid4().hex[:4].upper()}"
 
 
 def _loaded_return(db: Session, return_id: uuid.UUID):
@@ -63,12 +72,25 @@ def create_return(sale_id: uuid.UUID, payload: SaleReturnCreate, db: Session = D
                 return_to_stock=requested.return_to_stock))
             if requested.return_to_stock:
                 before = product.current_stock
-                result = db.execute(update(Product).where(Product.id == product.id, Product.is_active.is_(True), Product.current_stock == before)
-                    .values(current_stock=before + requested.quantity))
+                after = before + requested.quantity
+                current_cost = Decimal(product.cost_price)
+                # Legacy sale items may not have a trustworthy cost snapshot. In
+                # that case stock is returned while the current average cost is
+                # deliberately preserved rather than inventing historical cost.
+                average_cost = current_cost
+                if original.cost_price is not None:
+                    historical_cost = Decimal(original.cost_price)
+                    average_cost = (historical_cost if before == 0 else
+                        ((before * current_cost) + (requested.quantity * historical_cost)) / after
+                    ).quantize(CENT, rounding=ROUND_HALF_UP)
+                result = db.execute(update(Product).where(
+                    Product.id == product.id, Product.is_active.is_(True),
+                    Product.current_stock == before, Product.cost_price == current_cost,
+                ).values(current_stock=after, cost_price=average_cost))
                 if result.rowcount != 1:
                     raise HTTPException(status_code=409, detail="Product stock changed while processing the return. Please retry.")
                 db.add(InventoryMovement(product_id=product.id, movement_type=MovementType.RETURN,
-                    quantity_change=requested.quantity, stock_before=before, stock_after=before + requested.quantity,
+                    quantity_change=requested.quantity, stock_before=before, stock_after=after,
                     reference_type="SALE_RETURN", reference_id=returned.id, note=returned.return_number))
         db.commit()
         return _loaded_return(db, returned.id)
@@ -97,8 +119,11 @@ def list_returns(search: str = "", start_date: date | None = None, end_date: dat
         raise HTTPException(status_code=422, detail="From date cannot be after To date")
     filters = []
     if search.strip(): filters.append(or_(SaleReturn.return_number.ilike(f"%{search.strip()}%"), Sale.receipt_number.ilike(f"%{search.strip()}%")))
-    if start_date: filters.append(SaleReturn.created_at >= datetime.combine(start_date, time.min, tzinfo=timezone.utc))
-    if end_date: filters.append(SaleReturn.created_at < datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=timezone.utc))
+    business_tz = _business_timezone()
+    if start_date:
+        filters.append(SaleReturn.created_at >= datetime.combine(start_date, time.min, business_tz).astimezone(timezone.utc))
+    if end_date:
+        filters.append(SaleReturn.created_at < datetime.combine(end_date + timedelta(days=1), time.min, business_tz).astimezone(timezone.utc))
     base = select(SaleReturn).join(Sale).where(*filters)
     total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
     items = db.scalars(base.options(selectinload(SaleReturn.items), selectinload(SaleReturn.sale))
