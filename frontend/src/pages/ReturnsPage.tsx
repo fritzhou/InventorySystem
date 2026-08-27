@@ -1,0 +1,13 @@
+import { useEffect, useState, type FormEvent } from 'react'
+import { ReturnReceipt } from '../components/ReturnReceipt'
+import { api } from '../services/api'
+import type { ReturnsPage as ReturnsData, SaleReturn } from '../types/sale'
+import { formatMoney } from '../utils/money'
+const empty: ReturnsData = { items: [], page: 1, page_size: 20, total_items: 0, total_pages: 0 }
+export function ReturnsPage() {
+  const [draft,setDraft]=useState({search:'',startDate:'',endDate:''}); const [filters,setFilters]=useState(draft); const [page,setPage]=useState(1); const [data,setData]=useState(empty); const [error,setError]=useState(''); const [detail,setDetail]=useState<SaleReturn|null>(null)
+  useEffect(()=>{api.getReturns({...filters,page}).then(setData).catch(()=>setError('Return history could not be loaded.'))},[filters,page])
+  if(detail) return <><button className="text-button back-button" onClick={()=>setDetail(null)}>← Back to Return History</button><ReturnReceipt value={detail}/></>
+  const apply=(e:FormEvent)=>{e.preventDefault();if(draft.startDate&&draft.endDate&&draft.startDate>draft.endDate){setError('From date cannot be after To date');return}setError('');setPage(1);setFilters(draft)}
+  return <><div className="page-heading"><div><span className="eyebrow">Refund audit trail</span><h1>Returns</h1><p>Review customer refunds without changing original sales.</p></div></div><form className="card history-filters" onSubmit={apply}><label className="history-search">Return or receipt<input aria-label="Search returns" value={draft.search} onChange={e=>setDraft({...draft,search:e.target.value})}/></label><label>From date<input type="date" value={draft.startDate} onChange={e=>setDraft({...draft,startDate:e.target.value})}/></label><label>To date<input type="date" value={draft.endDate} onChange={e=>setDraft({...draft,endDate:e.target.value})}/></label><button className="button primary">Apply Filters</button></form>{error&&<p className="error">{error}</p>}<section className="card history-list">{data.items.length?data.items.map(r=><article className="sale-row" key={r.id}><div><strong>{r.return_number}</strong><time>{new Date(r.created_at).toLocaleString()}</time></div><span>{r.sale.receipt_number}</span><span>{r.items.reduce((n,i)=>n+i.quantity,0)} items</span><strong>{formatMoney(r.refund_total)}</strong><button className="button secondary" onClick={()=>setDetail(r)}>View Return</button></article>):<p className="empty">No returns found.</p>}</section>{data.total_pages>1&&<div className="pagination"><button disabled={page===1} onClick={()=>setPage(p=>p-1)}>Previous</button><span>Page {page} of {data.total_pages}</span><button disabled={page>=data.total_pages} onClick={()=>setPage(p=>p+1)}>Next</button></div>}</>
+}

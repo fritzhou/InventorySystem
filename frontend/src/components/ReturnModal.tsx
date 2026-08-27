@@ -1,0 +1,15 @@
+import { useState } from 'react'
+import { ApiError, api } from '../services/api'
+import type { Sale, SaleReturn } from '../types/sale'
+import { formatMoney } from '../utils/money'
+
+export function ReturnModal({ sale, onCancel, onComplete }: { sale: Sale; onCancel: () => void; onComplete: (value: SaleReturn) => void }) {
+  const [quantities, setQuantities] = useState<Record<string, number>>({}); const [stock, setStock] = useState<Record<string, boolean>>({}); const [reason, setReason] = useState(''); const [error, setError] = useState(''); const [saving, setSaving] = useState(false)
+  const chosen = sale.items.filter(i => (quantities[i.id] ?? 0) > 0)
+  const preview = chosen.reduce((sum, item) => sum + Number(item.unit_price) * (quantities[item.id] ?? 0), 0)
+  const submit = async () => { setError(''); if (!chosen.length) { setError('Select at least one item to return.'); return } setSaving(true); try { onComplete(await api.createReturn(sale.id, { reason, items: chosen.map(i => ({ sale_item_id: i.id, quantity: quantities[i.id], return_to_stock: !!stock[i.id] })) })) } catch (e) { setError(e instanceof ApiError ? e.message : 'Return could not be processed.') } finally { setSaving(false) } }
+  return <div className="modal-backdrop"><section className="modal return-modal" role="dialog" aria-modal="true" aria-label="Process Return"><div className="modal-heading"><div><span className="eyebrow">Receipt {sale.receipt_number}</span><h2>Process Return</h2></div><button className="icon-button" onClick={onCancel} aria-label="Close">×</button></div>
+    {sale.items.map(item => <div className="return-line" key={item.id}><div><strong>{item.product_name}</strong><small>Sold: {item.quantity} · Previously returned: {item.returned_quantity} · Available: {item.returnable_quantity}</small></div><label>Return quantity<input aria-label={`Return quantity for ${item.product_name}`} type="number" min="0" max={item.returnable_quantity} disabled={!item.returnable_quantity} value={quantities[item.id] ?? 0} onChange={e => setQuantities({...quantities, [item.id]: Math.min(item.returnable_quantity, Math.max(0, Number(e.target.value)))})} /></label><label className="checkbox"><input type="checkbox" checked={!!stock[item.id]} disabled={!item.returnable_quantity} onChange={e => setStock({...stock, [item.id]: e.target.checked})} /> Return to stock</label><strong>{formatMoney(String(Number(item.unit_price) * (quantities[item.id] ?? 0)))}</strong></div>)}
+    <label>Reason <span className="optional">optional</span><input value={reason} onChange={e => setReason(e.target.value)} placeholder="Customer changed mind" /></label><div className="return-total"><span>Total Refund</span><strong>{formatMoney(String(preview))}</strong></div>{error && <p className="error" role="alert">{error}</p>}<div className="form-actions"><button className="button secondary" onClick={onCancel}>Cancel</button><button className="button primary" disabled={saving} onClick={() => void submit()}>{saving ? 'Processing…' : 'Confirm Return'}</button></div>
+  </section></div>
+}

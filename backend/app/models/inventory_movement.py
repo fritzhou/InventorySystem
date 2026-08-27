@@ -13,6 +13,7 @@ class MovementType(str, enum.Enum):
     SALE = "SALE"
     DAMAGE = "DAMAGE"
     CORRECTION = "CORRECTION"
+    RETURN = "RETURN"
 
 
 class InventoryMovement(Base):

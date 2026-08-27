@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -52,3 +52,40 @@ class SaleItem(Base):
 
     sale: Mapped[Sale] = relationship(back_populates="items")
     product: Mapped["Product"] = relationship(back_populates="sale_items")  # noqa: F821
+
+
+class SaleReturn(Base):
+    __tablename__ = "sale_returns"
+    __table_args__ = (CheckConstraint("refund_total >= 0", name="ck_sale_returns_refund_nonnegative"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    return_number: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    sale_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sales.id", ondelete="RESTRICT"), index=True)
+    refund_total: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    sale: Mapped[Sale] = relationship()
+    items: Mapped[list["SaleReturnItem"]] = relationship(back_populates="sale_return", cascade="all, delete-orphan")
+
+
+class SaleReturnItem(Base):
+    __tablename__ = "sale_return_items"
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="ck_sale_return_items_quantity_positive"),
+        CheckConstraint("refund_amount >= 0", name="ck_sale_return_items_refund_nonnegative"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    sale_return_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sale_returns.id", ondelete="CASCADE"), index=True)
+    sale_item_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sale_items.id", ondelete="RESTRICT"), index=True)
+    product_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("products.id", ondelete="RESTRICT"), index=True)
+    product_name: Mapped[str] = mapped_column(String(160))
+    sku: Mapped[str] = mapped_column(String(64))
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    cost_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    quantity: Mapped[int] = mapped_column(Integer)
+    refund_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    return_to_stock: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    sale_return: Mapped[SaleReturn] = relationship(back_populates="items")

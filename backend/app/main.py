@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import categories, inventory, products, reports, sales, purchasing
+from app.routers import categories, inventory, products, reports, returns, sales, purchasing
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name, version="0.1.0")
@@ -19,6 +19,7 @@ app.include_router(sales.router)
 app.include_router(inventory.router)
 app.include_router(reports.router)
 app.include_router(purchasing.router)
+app.include_router(returns.router)
 
 
 @app.get("/health", tags=["system"])
