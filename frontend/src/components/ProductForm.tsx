@@ -8,6 +8,7 @@ interface ProductFormProps {
   product: Product | null
   isSaving: boolean
   error: string | null
+  initialBarcode?: string
   onCancel: () => void
   onSubmit: (value: ProductInput | ProductUpdateInput) => Promise<void>
 }
@@ -16,7 +17,7 @@ const emptyProduct: ProductInput = {
   name: '', sku: '', barcode: null, category_id: '', cost_price: '', selling_price: '', current_stock: 0, minimum_stock: 0,
 }
 
-export function ProductForm({ categories, product, isSaving, error, onCancel, onSubmit }: ProductFormProps) {
+export function ProductForm({ categories, product, isSaving, error, initialBarcode = '', onCancel, onSubmit }: ProductFormProps) {
   const [values, setValues] = useState<ProductInput>(emptyProduct)
 
   useEffect(() => {
@@ -24,8 +25,8 @@ export function ProductForm({ categories, product, isSaving, error, onCancel, on
       name: product.name, sku: product.sku, barcode: product.barcode, category_id: product.category_id,
       cost_price: product.cost_price, selling_price: product.selling_price,
       current_stock: product.current_stock, minimum_stock: product.minimum_stock,
-    } : emptyProduct)
-  }, [product])
+    } : { ...emptyProduct, barcode: initialBarcode || null })
+  }, [product, initialBarcode])
 
   const update = (field: keyof ProductInput, value: string | number | null) => setValues((current) => ({ ...current, [field]: value }))
   const submit = async (event: FormEvent) => {
