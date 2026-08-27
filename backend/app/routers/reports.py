@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.database import get_db
-from app.models import Product, Sale, SaleItem
+from app.models import Product, Sale, SaleItem, SaleReturn, SaleReturnItem
 from app.schemas.report import InventoryStatus, ReportSummary, SalesTrendPoint, StockProduct, TopProduct
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -55,11 +55,17 @@ def _summary(db: Session, start: datetime, end: datetime) -> ReportSummary:
         func.coalesce(func.sum(case((SaleItem.cost_price.is_not(None), (SaleItem.unit_price - SaleItem.cost_price) * SaleItem.quantity), else_=0)), 0),
         func.coalesce(func.sum(case((SaleItem.cost_price.is_(None), 1), else_=0)), 0),
     ).join(Sale).where(Sale.created_at >= start, Sale.created_at < end)).one()
+    refunds, returned_items, reversed_profit, missing_return_cost = db.execute(select(
+        func.coalesce(func.sum(SaleReturnItem.refund_amount), 0),
+        func.coalesce(func.sum(SaleReturnItem.quantity), 0),
+        func.coalesce(func.sum(case((SaleReturnItem.cost_price.is_not(None), (SaleReturnItem.unit_price - SaleReturnItem.cost_price) * SaleReturnItem.quantity), else_=0)), 0),
+        func.coalesce(func.sum(case((SaleReturnItem.cost_price.is_(None), 1), else_=0)), 0),
+    ).join(SaleReturn).where(SaleReturn.created_at >= start, SaleReturn.created_at < end)).one()
     active, units, low, out = _inventory(db)
-    total = Decimal(sales_total).quantize(CENT)
+    total = (Decimal(sales_total) - Decimal(refunds)).quantize(CENT)
     return ReportSummary(
-        sales_total=total, transaction_count=transaction_count, items_sold=items_sold,
-        gross_profit=Decimal(profit).quantize(CENT), profit_complete=missing_cost == 0,
+        sales_total=total, transaction_count=transaction_count, items_sold=items_sold - returned_items,
+        gross_profit=(Decimal(profit) - Decimal(reversed_profit)).quantize(CENT), profit_complete=missing_cost == 0 and missing_return_cost == 0,
         average_transaction_value=(total / transaction_count).quantize(CENT) if transaction_count else Decimal("0.00"),
         total_active_products=active, total_units_in_stock=units, low_stock_count=low or 0, out_of_stock_count=out or 0,
     )
@@ -88,6 +94,13 @@ def sales_trend(start_date: date | None = None, end_date: date | None = None, db
         aware = created_at.replace(tzinfo=timezone.utc) if created_at.tzinfo is None else created_at
         key = aware.astimezone(_timezone()).date()
         values[key][0] += Decimal(total); values[key][1] += 1; values[key][2] += quantity
+    returns = db.execute(select(SaleReturn.created_at, SaleReturn.refund_total, func.coalesce(func.sum(SaleReturnItem.quantity), 0))
+        .outerjoin(SaleReturnItem).where(SaleReturn.created_at >= start, SaleReturn.created_at < end)
+        .group_by(SaleReturn.id).order_by(SaleReturn.created_at)).all()
+    for created_at, refund, quantity in returns:
+        aware = created_at.replace(tzinfo=timezone.utc) if created_at.tzinfo is None else created_at
+        key = aware.astimezone(_timezone()).date()
+        values[key][0] -= Decimal(refund); values[key][2] -= quantity
     return [SalesTrendPoint(date=day, sales=value[0], transactions=value[1], items_sold=value[2]) for day, value in values.items()]
 
 
@@ -99,8 +112,17 @@ def top_products(start_date: date | None = None, end_date: date | None = None,
         func.sum(SaleItem.quantity), func.sum(SaleItem.line_total)).join(Sale)
         .where(Sale.created_at >= start, Sale.created_at < end)
         .group_by(SaleItem.product_id, SaleItem.product_name, SaleItem.sku)
-        .order_by(func.sum(SaleItem.quantity).desc(), func.sum(SaleItem.line_total).desc()).limit(limit)).all()
-    return [TopProduct(product_id=r[0], product_name=r[1], sku=r[2], quantity_sold=r[3], revenue=r[4]) for r in rows]
+        .order_by(func.sum(SaleItem.quantity).desc(), func.sum(SaleItem.line_total).desc())).all()
+    values = {r[0]: [r[1], r[2], int(r[3]), Decimal(r[4])] for r in rows}
+    returned = db.execute(select(SaleReturnItem.product_id, SaleReturnItem.product_name, SaleReturnItem.sku,
+        func.sum(SaleReturnItem.quantity), func.sum(SaleReturnItem.refund_amount)).join(SaleReturn)
+        .where(SaleReturn.created_at >= start, SaleReturn.created_at < end)
+        .group_by(SaleReturnItem.product_id, SaleReturnItem.product_name, SaleReturnItem.sku)).all()
+    for product_id, name, sku, quantity, refund in returned:
+        value = values.setdefault(product_id, [name, sku, 0, Decimal("0.00")])
+        value[2] -= int(quantity); value[3] -= Decimal(refund)
+    ordered = sorted(values.items(), key=lambda item: (item[1][2], item[1][3]), reverse=True)[:limit]
+    return [TopProduct(product_id=product_id, product_name=v[0], sku=v[1], quantity_sold=v[2], revenue=v[3]) for product_id, v in ordered]
 
 
 @router.get("/inventory-status", response_model=InventoryStatus)

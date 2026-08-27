@@ -1,4 +1,4 @@
-export type MovementType = 'RESTOCK' | 'SALE' | 'DAMAGE' | 'CORRECTION'
+export type MovementType = 'RESTOCK' | 'SALE' | 'DAMAGE' | 'CORRECTION' | 'RETURN'
 export interface StockAdjustmentInput { type: Exclude<MovementType, 'SALE'>; quantity?: number; actual_stock?: number; note?: string }
 export interface InventoryMovement {
   id: string; product_id: string; movement_type: MovementType; quantity_change: number

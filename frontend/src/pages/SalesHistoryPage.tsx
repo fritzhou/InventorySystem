@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 
 import { Receipt } from '../components/Receipt'
+import { ReturnModal } from '../components/ReturnModal'
+import { ReturnReceipt } from '../components/ReturnReceipt'
 import { ApiError, api } from '../services/api'
-import type { Sale, SalesPage } from '../types/sale'
+import type { Sale, SaleReturn, SalesPage } from '../types/sale'
 import { formatMoney } from '../utils/money'
 
 const emptyPage: SalesPage = { items: [], page: 1, page_size: 20, total_items: 0, total_pages: 0 }
@@ -18,6 +20,8 @@ export function SalesHistoryPage() {
   const [error, setError] = useState('')
   const [sale, setSale] = useState<Sale | null>(null)
   const [detailError, setDetailError] = useState('')
+  const [returning, setReturning] = useState(false)
+  const [completedReturn, setCompletedReturn] = useState<SaleReturn | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -40,7 +44,8 @@ export function SalesHistoryPage() {
     catch (err) { setDetailError(err instanceof ApiError && err.status === 404 ? 'Receipt not found.' : 'Sale could not be loaded.') }
   }
 
-  if (sale) return <><button className="text-button back-button" onClick={() => setSale(null)}>← Back to Sales History</button><Receipt sale={sale} /></>
+  if (completedReturn) return <><button className="text-button back-button" onClick={() => { setCompletedReturn(null); setSale(null) }}>← Back to Sales History</button><ReturnReceipt value={completedReturn} /></>
+  if (sale) { const available = sale.items.reduce((sum,item)=>sum+(item.returnable_quantity ?? item.quantity),0); return <><button className="text-button back-button" onClick={() => setSale(null)}>← Back to Sales History</button><Receipt sale={sale} /><section className="card return-summary"><h2>Return eligibility {available === 0 && <span className="fully-returned">FULLY RETURNED</span>}</h2>{sale.items.map(item=><div key={item.id}><span>{item.product_name}: Sold {item.quantity} · Returned {item.returned_quantity ?? 0} · Returnable {item.returnable_quantity ?? item.quantity}</span></div>)}{available>0&&<button className="button primary" onClick={()=>setReturning(true)}>Process Return</button>}</section>{returning&&<ReturnModal sale={sale} onCancel={()=>setReturning(false)} onComplete={setCompletedReturn}/>}</> }
   return <>
     <div className="page-heading"><div><span className="eyebrow">Transactions</span><h1>Sales History</h1><p>Find completed sales and reprint their receipts.</p></div></div>
     <form className="card history-filters" onSubmit={apply}>

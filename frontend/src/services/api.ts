@@ -1,6 +1,6 @@
 import type { Category, CategoryInput } from '../types/category'
 import type { Product, ProductInput, ProductLookup, ProductUpdateInput } from '../types/product'
-import type { CheckoutInput, Sale, SalesPage } from '../types/sale'
+import type { CheckoutInput, Sale, SaleReturn, SalesPage, ReturnsPage } from '../types/sale'
 import type { InventoryMovement, InventoryMovementPage, MovementType, StockAdjustmentInput } from '../types/inventory'
 import type { InventoryStatus, ReportSummary, TopProduct, TrendPoint } from '../types/report'
 import type { POInput, POPage, PurchaseOrder, Supplier, SupplierInput, SupplierPage } from '../types/purchasing'
@@ -40,6 +40,7 @@ export interface SaleFilters {
   page?: number
   pageSize?: number
 }
+export interface ReturnFilters { search?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }
 export interface MovementFilters { productId?: string; movementType?: MovementType | ''; search?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }
 export interface PurchaseOrderFilters { search?: string; supplierId?: string; status?: string; fromDate?: string; toDate?: string; page?: number; pageSize?: number }
 
@@ -67,6 +68,12 @@ export const api = {
     return request<SalesPage>(`/api/sales?${params}`)
   },
   getSale: (id: string) => request<Sale>(`/api/sales/${encodeURIComponent(id)}`),
+  createReturn: (saleId: string, value: { reason?: string; items: Array<{ sale_item_id: string; quantity: number; return_to_stock: boolean }> }) => request<SaleReturn>(`/api/sales/${encodeURIComponent(saleId)}/returns`, { method: 'POST', body: JSON.stringify(value) }),
+  getReturns: ({ search = '', startDate = '', endDate = '', page = 1, pageSize = 20 }: ReturnFilters = {}) => {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) }); if (search.trim()) params.set('search', search.trim()); if (startDate) params.set('start_date', startDate); if (endDate) params.set('end_date', endDate)
+    return request<ReturnsPage>(`/api/returns?${params}`)
+  },
+  getReturn: (id: string) => request<SaleReturn>(`/api/returns/${encodeURIComponent(id)}`),
   adjustStock: (id: string, adjustment: StockAdjustmentInput) => request<InventoryMovement>(`/api/products/${id}/stock-adjustments`, { method: 'POST', body: JSON.stringify(adjustment) }),
   getInventoryMovements: ({ productId = '', movementType = '', search = '', startDate = '', endDate = '', page = 1, pageSize = 20 }: MovementFilters = {}) => {
     const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })

@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import InventoryMovement, MovementType, Product, Sale, SaleItem
+from app.models import InventoryMovement, MovementType, Product, Sale, SaleItem, SaleReturnItem
 from app.schemas.sale import CheckoutCreate, SaleRead, SaleSummary, SalesPage
 
 router = APIRouter(prefix="/api/sales", tags=["sales"])
@@ -68,6 +68,12 @@ def get_sale(sale_id: uuid.UUID, db: Session = Depends(get_db)) -> Sale:
     sale = db.scalar(select(Sale).options(selectinload(Sale.items)).where(Sale.id == sale_id))
     if sale is None:
         raise HTTPException(status_code=404, detail="Receipt not found")
+    returned = dict(db.execute(select(SaleReturnItem.sale_item_id, func.sum(SaleReturnItem.quantity))
+        .where(SaleReturnItem.sale_item_id.in_([item.id for item in sale.items]))
+        .group_by(SaleReturnItem.sale_item_id)).all()) if sale.items else {}
+    for item in sale.items:
+        item.returned_quantity = int(returned.get(item.id, 0))
+        item.returnable_quantity = item.quantity - item.returned_quantity
     return sale
 
 

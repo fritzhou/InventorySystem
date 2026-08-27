@@ -25,6 +25,8 @@ class SaleItemRead(BaseModel):
     unit_price: Decimal
     quantity: int
     line_total: Decimal
+    returned_quantity: int = 0
+    returnable_quantity: int = 0
 
 
 class SaleRead(BaseModel):
