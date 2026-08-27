@@ -1,5 +1,5 @@
 import type { Category, CategoryInput } from '../types/category'
-import type { Product, ProductInput, ProductUpdateInput } from '../types/product'
+import type { Product, ProductInput, ProductLookup, ProductUpdateInput } from '../types/product'
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -38,6 +38,7 @@ export const api = {
     return request<Product[]>(`/api/products?${params}`)
   },
   getProductByBarcode: (barcode: string) => request<Product>(`/api/products/barcode/${encodeURIComponent(barcode)}`),
+  lookupProductByBarcode: (barcode: string) => request<ProductLookup>(`/api/products/barcode/${encodeURIComponent(barcode)}/lookup`),
   createProduct: (product: ProductInput) => request<Product>('/api/products', { method: 'POST', body: JSON.stringify(product) }),
   updateProduct: (id: string, product: ProductUpdateInput) => request<Product>(`/api/products/${id}`, { method: 'PATCH', body: JSON.stringify(product) }),
   deactivateProduct: (id: string) => request<Product>(`/api/products/${id}`, { method: 'DELETE' }),

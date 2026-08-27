@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     app_name: str = "StockFlow API"
     database_url: str = "sqlite:///./stockflow.db"
     cors_origins: list[str] = ["http://localhost:5173"]
+    product_lookup_timeout_seconds: float = 4.0
+    open_food_facts_base_url: str = "https://world.openfoodfacts.org"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

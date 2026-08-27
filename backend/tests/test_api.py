@@ -89,3 +89,79 @@ def test_rejects_blank_category_and_invalid_product_values(client: TestClient) -
         },
     )
     assert invalid.status_code == 422
+
+
+def test_barcode_lookup_returns_local_product_without_provider(client: TestClient) -> None:
+    from app.main import app
+    from app.services.product_lookup import get_product_lookup_provider
+
+    class FailingIfCalled:
+        name = "test"
+        def lookup(self, barcode: str):
+            raise AssertionError("provider must not be called for a local product")
+
+    category_id = client.post("/api/categories", json={"name": "Food"}).json()["id"]
+    product = client.post("/api/products", json={
+        "name": "Local cereal", "sku": "LOCAL-1", "barcode": "12345678", "category_id": category_id,
+        "cost_price": "1.25", "selling_price": "2.50", "current_stock": 4, "minimum_stock": 1,
+    }).json()
+    app.dependency_overrides[get_product_lookup_provider] = lambda: FailingIfCalled()
+    response = client.get("/api/products/barcode/12345678/lookup")
+    assert response.status_code == 200
+    assert response.json()["source"] == "stockflow"
+    assert response.json()["product"] == product
+    assert response.json()["external_product"] is None
+
+
+def test_barcode_lookup_external_success_has_no_inventory_values(client: TestClient) -> None:
+    from app.main import app
+    from app.schemas.product import ExternalProductRead
+    from app.services.product_lookup import get_product_lookup_provider
+
+    class Provider:
+        name = "open_food_facts"
+        def lookup(self, barcode: str):
+            return ExternalProductRead(barcode=barcode, product_name="Oat Bar", brand="Example", category_text="Snacks", package_size="40 g", image_url="https://images.example/item.jpg")
+
+    app.dependency_overrides[get_product_lookup_provider] = lambda: Provider()
+    body = client.get("/api/products/barcode/99999999/lookup").json()
+    assert body["found"] is True
+    assert body["source"] == "open_food_facts"
+    assert body["external_product"]["product_name"] == "Oat Bar"
+    assert not ({"cost_price", "selling_price", "current_stock", "minimum_stock"} & body["external_product"].keys())
+
+
+def test_barcode_lookup_unknown_and_incomplete_data(client: TestClient) -> None:
+    from app.main import app
+    from app.schemas.product import ExternalProductRead
+    from app.services.product_lookup import get_product_lookup_provider
+
+    class Provider:
+        name = "open_food_facts"
+        result = None
+        def lookup(self, barcode: str):
+            return self.result
+
+    provider = Provider()
+    app.dependency_overrides[get_product_lookup_provider] = lambda: provider
+    unknown = client.get("/api/products/barcode/11111111/lookup").json()
+    assert unknown == {"found": False, "source": "none", "product": None, "external_product": None, "reason": "not_found"}
+    provider.result = ExternalProductRead(barcode="22222222")
+    incomplete = client.get("/api/products/barcode/22222222/lookup").json()
+    assert incomplete["found"] is True
+    assert incomplete["external_product"] == {"barcode": "22222222", "product_name": None, "brand": None, "category_text": None, "package_size": None, "image_url": None}
+
+
+def test_barcode_lookup_handles_provider_failure(client: TestClient) -> None:
+    from app.main import app
+    from app.services.product_lookup import ProviderUnavailableError, get_product_lookup_provider
+
+    class Provider:
+        name = "open_food_facts"
+        def lookup(self, barcode: str):
+            raise ProviderUnavailableError
+
+    app.dependency_overrides[get_product_lookup_provider] = lambda: Provider()
+    response = client.get("/api/products/barcode/33333333/lookup")
+    assert response.status_code == 200
+    assert response.json()["reason"] == "provider_unavailable"

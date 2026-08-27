@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Category, Product
-from app.schemas.product import ProductCreate, ProductRead, ProductUpdate
+from app.schemas.product import ProductCreate, ProductLookupRead, ProductRead, ProductUpdate
+from app.services.product_lookup import ProviderUnavailableError, ProductLookupProvider, get_product_lookup_provider
 
 router = APIRouter(prefix="/api/products", tags=["products"])
 
@@ -53,6 +54,24 @@ def get_product_by_barcode(barcode: str, db: Session = Depends(get_db)) -> Produ
     if product is None:
         raise HTTPException(status_code=404, detail="Product not found.")
     return product
+
+
+@router.get("/barcode/{barcode}/lookup", response_model=ProductLookupRead)
+def lookup_product_by_barcode(
+    barcode: str,
+    db: Session = Depends(get_db),
+    provider: ProductLookupProvider = Depends(get_product_lookup_provider),
+) -> ProductLookupRead:
+    product = db.scalar(select(Product).where(Product.barcode == barcode))
+    if product is not None:
+        return ProductLookupRead(found=True, source="stockflow", product=ProductRead.model_validate(product))
+    try:
+        external_product = provider.lookup(barcode)
+    except ProviderUnavailableError:
+        return ProductLookupRead(found=False, source="none", reason="provider_unavailable")
+    if external_product is None:
+        return ProductLookupRead(found=False, source="none", reason="not_found")
+    return ProductLookupRead(found=True, source=provider.name, external_product=external_product)
 
 
 @router.get("/{product_id}", response_model=ProductRead)
