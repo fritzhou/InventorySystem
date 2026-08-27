@@ -4,6 +4,7 @@ import type { CheckoutInput, Sale, SaleReturn, SalesPage, ReturnsPage } from '..
 import type { InventoryMovement, InventoryMovementPage, MovementType, StockAdjustmentInput } from '../types/inventory'
 import type { InventoryStatus, ReportSummary, TopProduct, TrendPoint } from '../types/report'
 import type { POInput, POPage, PurchaseOrder, Supplier, SupplierInput, SupplierPage } from '../types/purchasing'
+import type { Expense, ExpenseCategory, ExpenseInput, ExpensePage, ExpenseStatus, ExpenseSummary } from '../types/expense'
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -43,6 +44,7 @@ export interface SaleFilters {
 export interface ReturnFilters { search?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }
 export interface MovementFilters { productId?: string; movementType?: MovementType | ''; search?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }
 export interface PurchaseOrderFilters { search?: string; supplierId?: string; status?: string; fromDate?: string; toDate?: string; page?: number; pageSize?: number }
+export interface ExpenseFilters { search?:string; categoryId?:string; status?:ExpenseStatus|''; startDate?:string; endDate?:string; page?:number; pageSize?:number }
 
 export const api = {
   getHealth: () => request<{ status: string; service: string }>('/health'),
@@ -107,6 +109,15 @@ export const api = {
   markPurchaseOrderOrdered: (id:string) => request<PurchaseOrder>(`/api/purchase-orders/${id}/mark-ordered`,{method:'POST'}),
   cancelPurchaseOrder: (id:string) => request<PurchaseOrder>(`/api/purchase-orders/${id}/cancel`,{method:'POST'}),
   receivePurchaseOrder: (id:string,items:Array<{item_id:string;quantity:number}>) => request<PurchaseOrder>(`/api/purchase-orders/${id}/receive`,{method:'POST',body:JSON.stringify({items})}),
+  getExpenseCategories: (activeOnly=false) => request<ExpenseCategory[]>(`/api/expense-categories?active_only=${activeOnly}`),
+  createExpenseCategory: (value:{name:string;description?:string|null}) => request<ExpenseCategory>('/api/expense-categories',{method:'POST',body:JSON.stringify(value)}),
+  updateExpenseCategory: (id:string,value:{name?:string;description?:string|null}) => request<ExpenseCategory>(`/api/expense-categories/${id}`,{method:'PATCH',body:JSON.stringify(value)}),
+  deactivateExpenseCategory: (id:string) => request<ExpenseCategory>(`/api/expense-categories/${id}`,{method:'DELETE'}),
+  getExpenses: ({search='',categoryId='',status='',startDate='',endDate='',page=1,pageSize=20}:ExpenseFilters={}) => { const p=new URLSearchParams({page:String(page),page_size:String(pageSize)});if(search.trim())p.set('search',search.trim());if(categoryId)p.set('category_id',categoryId);if(status)p.set('status',status);if(startDate)p.set('start_date',startDate);if(endDate)p.set('end_date',endDate);return request<ExpensePage>(`/api/expenses?${p}`)},
+  createExpense: (value:ExpenseInput) => request<Expense>('/api/expenses',{method:'POST',body:JSON.stringify(value)}),
+  updateExpense: (id:string,value:Partial<ExpenseInput>) => request<Expense>(`/api/expenses/${id}`,{method:'PATCH',body:JSON.stringify(value)}),
+  voidExpense: (id:string,reason:string) => request<Expense>(`/api/expenses/${id}/void`,{method:'POST',body:JSON.stringify({reason})}),
+  getExpenseSummary: (startDate='',endDate='') => request<ExpenseSummary>(`/api/reports/expenses${reportQuery(startDate,endDate)}`),
 }
 
 function reportQuery(startDate: string, endDate: string, limit?: number) {
