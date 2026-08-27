@@ -5,6 +5,7 @@ import type { InventoryMovement, InventoryMovementPage, MovementType, StockAdjus
 import type { InventoryStatus, ReportSummary, TopProduct, TrendPoint } from '../types/report'
 import type { POInput, POPage, PurchaseOrder, Supplier, SupplierInput, SupplierPage } from '../types/purchasing'
 import type { Expense, ExpenseCategory, ExpenseInput, ExpensePage, ExpenseStatus, ExpenseSummary } from '../types/expense'
+import type { AuthUser, Role } from '../auth'
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -19,12 +20,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   headers.set('Accept', 'application/json')
   if (init?.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
-  const response = await fetch(`${API_URL}${path}`, { ...init, headers })
+  const response = await fetch(`${API_URL}${path}`, { ...init, headers, credentials: 'include' })
   if (!response.ok) {
     const body = await response.json().catch(() => null) as { detail?: string | Array<{ msg: string }> } | null
     const detail = Array.isArray(body?.detail) ? body.detail.map((issue) => issue.msg).join(', ') : body?.detail
+    if (response.status === 401 && path !== '/api/auth/login' && path !== '/api/auth/me') {
+      window.dispatchEvent(new CustomEvent('stockflow:session-expired'))
+    }
     throw new ApiError(detail ?? `StockFlow API request failed (${response.status})`, response.status)
   }
+  if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }
 
@@ -45,8 +50,18 @@ export interface ReturnFilters { search?: string; startDate?: string; endDate?: 
 export interface MovementFilters { productId?: string; movementType?: MovementType | ''; search?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }
 export interface PurchaseOrderFilters { search?: string; supplierId?: string; status?: string; fromDate?: string; toDate?: string; page?: number; pageSize?: number }
 export interface ExpenseFilters { search?:string; categoryId?:string; status?:ExpenseStatus|''; startDate?:string; endDate?:string; page?:number; pageSize?:number }
+export interface AuditEvent {id:string;actor_user_id:string|null;actor_email:string|null;actor_display_name:string|null;action:string;entity_type:string;entity_id:string|null;event_metadata:Record<string,unknown>|null;created_at:string}
 
 export const api = {
+  login: (email:string,password:string)=>request<AuthUser>('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})}),
+  me: ()=>request<AuthUser>('/api/auth/me'),
+  logout: ()=>request<void>('/api/auth/logout',{method:'POST'}),
+  changePassword:(current_password:string,new_password:string)=>request<AuthUser>('/api/auth/change-password',{method:'POST',body:JSON.stringify({current_password,new_password})}),
+  getUsers:()=>request<AuthUser[]>('/api/users'),
+  createUser:(value:{email:string;display_name:string;role:Role;temporary_password:string})=>request<AuthUser>('/api/users',{method:'POST',body:JSON.stringify(value)}),
+  updateUser:(id:string,value:Partial<Pick<AuthUser,'email'|'display_name'|'role'|'is_active'>>)=>request<AuthUser>(`/api/users/${id}`,{method:'PATCH',body:JSON.stringify(value)}),
+  resetUserPassword:(id:string,temporary_password:string)=>request<AuthUser>(`/api/users/${id}/reset-password`,{method:'POST',body:JSON.stringify({temporary_password})}),
+  getAuditEvents:(action='',page=1)=>request<{items:AuditEvent[];total:number;page:number;page_size:number}>(`/api/audit-events?${new URLSearchParams({action,page:String(page)})}`),
   getHealth: () => request<{ status: string; service: string }>('/health'),
   getProducts: ({ search = '', categoryId = '', activeOnly = true }: ProductFilters = {}) => {
     const params = new URLSearchParams({ active_only: String(activeOnly) })

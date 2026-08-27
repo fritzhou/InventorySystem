@@ -118,3 +118,17 @@ cd frontend && npm run build
 ## Phase 7 reporting
 
 Dashboard and report date boundaries use `REPORTING_TIMEZONE` (default: `Asia/Manila`) while database timestamps remain UTC. Profit is gross profit only: sale-time revenue less the `sale_items.cost_price` snapshot. The Phase 7 migration deliberately leaves that snapshot null for older sale items because their historical cost cannot be reconstructed reliably. Reports exclude those unknown lines from gross-profit totals and return `profit_complete: false` whenever the selected period includes one; revenue and other metrics remain complete.
+# Phase 11 authentication
+
+StockFlow uses backend-managed, database-backed sessions. Run the migrations, then create the first administrator interactively from `backend/`:
+
+```bash
+alembic upgrade head
+python -m app.scripts.create_admin
+```
+
+The command uses hidden `getpass` prompts, never seeds known credentials, and refuses to run after an administrator exists. Further accounts are created in the Admin-only Users screen and must replace their temporary password at first sign-in.
+
+Session secrets are delivered only through the `stockflow_session` HttpOnly, SameSite=Lax, Path=/ cookie. Only a SHA-256 digest is stored. Sessions expire after 12 hours by default; configure `SESSION_EXPIRATION_HOURS`, `SESSION_COOKIE_NAME`, and `SESSION_COOKIE_SECURE` (enable secure cookies for HTTPS).
+
+Roles are deliberately fixed: Cashiers have POS and their sales access without product costs; Managers additionally have operational product, inventory, return, supplier, and purchasing access; Administrators additionally have dashboard, financial reports, expenses, user administration, and immutable audit-log access. Password changes revoke all other sessions while keeping the current session active.

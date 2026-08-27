@@ -7,3 +7,6 @@ from app.models.purchasing import PurchaseOrder, PurchaseOrderItem, PurchaseOrde
 from app.models.expense import Expense, ExpenseCategory, ExpenseStatus
 
 __all__ = ["Category", "InventoryMovement", "MovementType", "Product", "Sale", "SaleItem", "SaleReturn", "SaleReturnItem", "User", "UserRole", "Supplier", "PurchaseOrder", "PurchaseOrderItem", "PurchaseOrderStatus", "Expense", "ExpenseCategory", "ExpenseStatus"]
+from app.models.user import AuditEvent, UserSession
+
+__all__ = ["AuditEvent", "Category", "Expense", "ExpenseCategory", "ExpenseStatus", "InventoryMovement", "MovementType", "Product", "PurchaseOrder", "PurchaseOrderItem", "PurchaseOrderStatus", "Sale", "SaleItem", "SaleReturn", "SaleReturnItem", "Supplier", "User", "UserRole", "UserSession"]

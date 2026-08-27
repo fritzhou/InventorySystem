@@ -7,14 +7,17 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
+from app.dependencies.auth import manager_role
+from app.models.user import User
+from app.audit import record_audit
 from app.models import InventoryMovement, MovementType, Product, Sale, PurchaseOrder
 from app.schemas.inventory import InventoryMovementPage, InventoryMovementRead, StockAdjustmentCreate
 
-router = APIRouter(tags=["inventory"])
+router = APIRouter(tags=["inventory"], dependencies=[Depends(manager_role)])
 
 
 @router.post("/api/products/{product_id}/stock-adjustments", response_model=InventoryMovementRead, status_code=status.HTTP_201_CREATED)
-def adjust_stock(product_id: uuid.UUID, payload: StockAdjustmentCreate, db: Session = Depends(get_db)) -> InventoryMovementRead:
+def adjust_stock(product_id: uuid.UUID, payload: StockAdjustmentCreate, db: Session = Depends(get_db), actor: User = Depends(manager_role)) -> InventoryMovementRead:
     try:
         product = db.scalar(select(Product).where(Product.id == product_id).with_for_update())
         if product is None:
@@ -34,9 +37,10 @@ def adjust_stock(product_id: uuid.UUID, payload: StockAdjustmentCreate, db: Sess
         result = db.execute(update(Product).where(Product.id == product_id, Product.current_stock == before, Product.is_active.is_(True)).values(current_stock=after))
         if result.rowcount != 1:
             raise HTTPException(status_code=409, detail="Stock changed while this adjustment was being saved. Please try again.")
-        movement = InventoryMovement(product_id=product.id, movement_type=payload.type, quantity_change=change,
+        movement = InventoryMovement(product_id=product.id, movement_type=payload.type, quantity_change=change, actor_user_id=actor.id,
                                      stock_before=before, stock_after=after, note=payload.note)
         db.add(movement)
+        record_audit(db, actor, "INVENTORY_ADJUSTED", "PRODUCT", product.id)
         db.commit()
         db.refresh(movement)
         movement.product = product
