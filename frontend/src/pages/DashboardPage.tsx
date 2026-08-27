@@ -7,8 +7,8 @@ import { formatMoney } from '../utils/money'
 const zero: ReportSummary = { sales_total: '0.00', transaction_count: 0, items_sold: 0, gross_profit: '0.00', profit_complete: true, average_transaction_value: '0.00', total_active_products: 0, total_units_in_stock: 0, low_stock_count: 0, out_of_stock_count: 0 }
 
 function TrendChart({ data }: { data: TrendPoint[] }) {
-  const max = Math.max(...data.map((point) => Number(point.sales)), 0)
-  return <div className="trend-chart" aria-label="Sales trend chart">{data.map((point) => <div className="trend-column" key={point.date} title={`${point.date}: ${formatMoney(point.sales)}`}><div style={{ height: max ? `${Math.max(4, Number(point.sales) / max * 100)}%` : '2px' }} /><small>{point.date.slice(5)}</small></div>)}</div>
+  const maxMagnitude = Math.max(...data.map((point) => Math.abs(Number(point.sales))), 0)
+  return <div className="trend-chart" aria-label="Sales trend chart">{data.map((point) => { const value = Number(point.sales); return <div className="trend-column" key={point.date} title={`${point.date}: ${formatMoney(point.sales)}`}><div className={value < 0 ? 'refund-bar' : ''} style={{ height: maxMagnitude ? `${Math.max(4, Math.abs(value) / maxMagnitude * 100)}%` : '2px' }} /><small>{point.date.slice(5)}</small></div> })}</div>
 }
 
 function Metrics({ summary }: { summary: ReportSummary }) {
