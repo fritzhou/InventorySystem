@@ -46,7 +46,11 @@ def test_restock_creates_auditable_return_movement(client, db):
     product, sale = create_sale(client, db)
     returned = return_item(client, sale, 1, True).json(); db.expire_all()
     assert db.get(Product, product.id).current_stock == 8
-    movement = db.scalar(select(InventoryMovement).where(InventoryMovement.reference_id == returned["id"]))
+    movement = db.scalar(
+        select(InventoryMovement).where(
+            InventoryMovement.reference_id == uuid.UUID(returned["id"])
+        )
+    )
     assert movement.movement_type == MovementType.RETURN
     assert (movement.quantity_change, movement.stock_before, movement.stock_after) == (1, 7, 8)
     assert movement.reference_type == "SALE_RETURN" and movement.note == returned["return_number"]
