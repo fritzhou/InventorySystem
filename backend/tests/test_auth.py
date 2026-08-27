@@ -1,7 +1,9 @@
 from datetime import timedelta
 
 from sqlalchemy import select
+from fastapi.testclient import TestClient
 
+from app.main import app
 from app.models.user import User, UserSession
 from app.models.user import AuditEvent
 from app.security import hash_password, utcnow, verify_password
@@ -111,14 +113,12 @@ def test_inactive_user_and_must_change_restriction(unauthenticated_client, db):
 
 def test_deactivation_permanently_revokes_old_session(client, db):
     created = client.post("/api/users", json={"email":"revoked@example.com","display_name":"Revoked User","role":"CASHIER","temporary_password":"temporary-123"}).json()
-    assert client.post("/api/auth/login", json={"email":"revoked@example.com","password":"temporary-123"}).status_code == 200
-    old_cookie = client.cookies.get("stockflow_session")
-    assert client.post("/api/auth/login", json={"email":"test-admin@example.com","password":"test-password-123"}).status_code == 200
-    assert client.patch(f"/api/users/{created['id']}", json={"is_active":False}).status_code == 200
-    client.cookies.set("stockflow_session", old_cookie)
-    assert client.get("/api/auth/me").status_code == 401
-    assert client.post("/api/auth/login", json={"email":"test-admin@example.com","password":"test-password-123"}).status_code == 200
-    assert client.patch(f"/api/users/{created['id']}", json={"is_active":True}).status_code == 200
-    client.cookies.set("stockflow_session", old_cookie)
-    assert client.get("/api/auth/me").status_code == 401
-    assert client.post("/api/auth/login", json={"email":"revoked@example.com","password":"temporary-123"}).status_code == 200
+    with TestClient(app) as cashier_browser:
+        assert cashier_browser.post("/api/auth/login", json={"email":"revoked@example.com","password":"temporary-123"}).status_code == 200
+        assert client.patch(f"/api/users/{created['id']}", json={"is_active":False}).status_code == 200
+        assert cashier_browser.get("/api/auth/me").status_code == 401
+        assert client.get("/api/auth/me").status_code == 200
+        assert client.patch(f"/api/users/{created['id']}", json={"is_active":True}).status_code == 200
+        assert cashier_browser.get("/api/auth/me").status_code == 401
+        assert cashier_browser.post("/api/auth/login", json={"email":"revoked@example.com","password":"temporary-123"}).status_code == 200
+        assert cashier_browser.get("/api/auth/me").status_code == 200

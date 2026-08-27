@@ -43,6 +43,8 @@ class ProductCreate(ProductBase):
 
 
 class ProductUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str | None = Field(default=None, min_length=1, max_length=160)
     sku: str | None = Field(default=None, min_length=1, max_length=64)
     barcode: str | None = Field(default=None, max_length=64)
