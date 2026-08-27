@@ -3,6 +3,7 @@ import type { Product, ProductInput, ProductLookup, ProductUpdateInput } from '.
 import type { CheckoutInput, Sale, SalesPage } from '../types/sale'
 import type { InventoryMovement, InventoryMovementPage, MovementType, StockAdjustmentInput } from '../types/inventory'
 import type { InventoryStatus, ReportSummary, TopProduct, TrendPoint } from '../types/report'
+import type { POInput, POPage, PurchaseOrder, Supplier, SupplierInput, SupplierPage } from '../types/purchasing'
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -79,6 +80,17 @@ export const api = {
   getSalesTrend: (startDate = '', endDate = '') => request<TrendPoint[]>(`/api/reports/sales-trend${reportQuery(startDate, endDate)}`),
   getTopProducts: (startDate = '', endDate = '', limit = 10) => request<TopProduct[]>(`/api/reports/top-products${reportQuery(startDate, endDate, limit)}`),
   getInventoryStatus: () => request<InventoryStatus>('/api/reports/inventory-status'),
+  getSuppliers: (search='', activeOnly=true, page=1) => request<SupplierPage>(`/api/suppliers?${new URLSearchParams({search,active_only:String(activeOnly),page:String(page)})}`),
+  createSupplier: (value:SupplierInput) => request<Supplier>('/api/suppliers',{method:'POST',body:JSON.stringify(value)}),
+  updateSupplier: (id:string,value:Partial<SupplierInput>) => request<Supplier>(`/api/suppliers/${id}`,{method:'PATCH',body:JSON.stringify(value)}),
+  deactivateSupplier: (id:string) => request<Supplier>(`/api/suppliers/${id}`,{method:'DELETE'}),
+  getPurchaseOrders: (params:Record<string,string>) => request<POPage>(`/api/purchase-orders?${new URLSearchParams(params)}`),
+  getPurchaseOrder: (id:string) => request<PurchaseOrder>(`/api/purchase-orders/${id}`),
+  createPurchaseOrder: (value:POInput) => request<PurchaseOrder>('/api/purchase-orders',{method:'POST',body:JSON.stringify(value)}),
+  updatePurchaseOrder: (id:string,value:POInput) => request<PurchaseOrder>(`/api/purchase-orders/${id}`,{method:'PATCH',body:JSON.stringify(value)}),
+  markPurchaseOrderOrdered: (id:string) => request<PurchaseOrder>(`/api/purchase-orders/${id}/mark-ordered`,{method:'POST'}),
+  cancelPurchaseOrder: (id:string) => request<PurchaseOrder>(`/api/purchase-orders/${id}/cancel`,{method:'POST'}),
+  receivePurchaseOrder: (id:string,items:Array<{item_id:string;quantity:number}>) => request<PurchaseOrder>(`/api/purchase-orders/${id}/receive`,{method:'POST',body:JSON.stringify({items})}),
 }
 
 function reportQuery(startDate: string, endDate: string, limit?: number) {

@@ -7,7 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import InventoryMovement, MovementType, Product, Sale
+from app.models import InventoryMovement, MovementType, Product, Sale, PurchaseOrder
 from app.schemas.inventory import InventoryMovementPage, InventoryMovementRead, StockAdjustmentCreate
 
 router = APIRouter(tags=["inventory"])
@@ -75,10 +75,13 @@ def list_movements(product_id: uuid.UUID | None = None, movement_type: MovementT
         .offset((page - 1) * page_size).limit(page_size)))
     sale_ids = [m.reference_id for m in movements if m.reference_type == "SALE" and m.reference_id]
     receipts = dict(db.execute(select(Sale.id, Sale.receipt_number).where(Sale.id.in_(sale_ids))).all()) if sale_ids else {}
+    po_ids = [m.reference_id for m in movements if m.reference_type == "PURCHASE_ORDER" and m.reference_id]
+    po_numbers = dict(db.execute(select(PurchaseOrder.id, PurchaseOrder.po_number).where(PurchaseOrder.id.in_(po_ids))).all()) if po_ids else {}
     items = []
     for movement in movements:
         item = InventoryMovementRead.model_validate(movement)
         item.receipt_number = receipts.get(movement.reference_id)
+        item.po_number = po_numbers.get(movement.reference_id)
         items.append(item)
     return InventoryMovementPage(items=items, page=page, page_size=page_size, total_items=total,
                                  total_pages=(total + page_size - 1) // page_size)
