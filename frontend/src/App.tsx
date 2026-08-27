@@ -2,6 +2,8 @@ import { ProductsPage } from './pages/ProductsPage'
 import { PosPage } from './pages/PosPage'
 import { SalesHistoryPage } from './pages/SalesHistoryPage'
 import { InventoryHistoryPage } from './pages/InventoryHistoryPage'
+import { DashboardPage } from './pages/DashboardPage'
+import { ReportsPage } from './pages/ReportsPage'
 import './styles.css'
 
 export default function App() {
@@ -9,10 +11,12 @@ export default function App() {
   const isPos = path === '/pos'
   const isHistory = path === '/sales'
   const isInventoryHistory = path === '/inventory'
+  const isDashboard = path === '/dashboard'
+  const isReports = path === '/reports'
   return (
     <div className="app-shell">
-      <header><a className="brand" href="/" aria-label="StockFlow home"><span>SF</span>StockFlow</a><nav aria-label="Main navigation"><a className={!isPos && !isHistory && !isInventoryHistory ? 'active' : ''} href="/">Products</a><a className={isPos ? 'active' : ''} href="/pos">Point of Sale</a><a className={isHistory ? 'active' : ''} href="/sales">Sales History</a><a className={isInventoryHistory ? 'active' : ''} href="/inventory">Inventory History</a></nav><div className="api-badge"><i /> {isPos ? 'Cashier ready' : isHistory ? 'Completed sales' : isInventoryHistory ? 'Stock audit trail' : 'Product management'}</div></header>
-      <main>{isPos ? <PosPage /> : isHistory ? <SalesHistoryPage /> : isInventoryHistory ? <InventoryHistoryPage /> : <ProductsPage />}</main>
+      <header><a className="brand" href="/dashboard" aria-label="StockFlow home"><span>SF</span>StockFlow</a><nav aria-label="Main navigation"><a className={isDashboard ? 'active' : ''} href="/dashboard">Dashboard</a><a className={!isPos && !isHistory && !isInventoryHistory && !isDashboard && !isReports ? 'active' : ''} href="/">Products</a><a className={isPos ? 'active' : ''} href="/pos">Point of Sale</a><a className={isHistory ? 'active' : ''} href="/sales">Sales History</a><a className={isInventoryHistory ? 'active' : ''} href="/inventory">Inventory History</a><a className={isReports ? 'active' : ''} href="/reports">Reports</a></nav><div className="api-badge"><i /> StockFlow</div></header>
+      <main>{isDashboard ? <DashboardPage /> : isReports ? <ReportsPage /> : isPos ? <PosPage /> : isHistory ? <SalesHistoryPage /> : isInventoryHistory ? <InventoryHistoryPage /> : <ProductsPage />}</main>
     </div>
   )
 }

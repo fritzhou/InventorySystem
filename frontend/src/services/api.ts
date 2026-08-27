@@ -2,6 +2,7 @@ import type { Category, CategoryInput } from '../types/category'
 import type { Product, ProductInput, ProductLookup, ProductUpdateInput } from '../types/product'
 import type { CheckoutInput, Sale, SalesPage } from '../types/sale'
 import type { InventoryMovement, InventoryMovementPage, MovementType, StockAdjustmentInput } from '../types/inventory'
+import type { InventoryStatus, ReportSummary, TopProduct, TrendPoint } from '../types/report'
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -74,4 +75,17 @@ export const api = {
     if (endDate) params.set('end_date', endDate)
     return request<InventoryMovementPage>(`/api/inventory/movements?${params}`)
   },
+  getReportSummary: (startDate = '', endDate = '', dashboard = false) => request<ReportSummary>(`/api/reports/${dashboard ? 'dashboard' : 'summary'}${reportQuery(startDate, endDate)}`),
+  getSalesTrend: (startDate = '', endDate = '') => request<TrendPoint[]>(`/api/reports/sales-trend${reportQuery(startDate, endDate)}`),
+  getTopProducts: (startDate = '', endDate = '', limit = 10) => request<TopProduct[]>(`/api/reports/top-products${reportQuery(startDate, endDate, limit)}`),
+  getInventoryStatus: () => request<InventoryStatus>('/api/reports/inventory-status'),
+}
+
+function reportQuery(startDate: string, endDate: string, limit?: number) {
+  const params = new URLSearchParams()
+  if (startDate) params.set('start_date', startDate)
+  if (endDate) params.set('end_date', endDate)
+  if (limit) params.set('limit', String(limit))
+  const query = params.toString()
+  return query ? `?${query}` : ''
 }

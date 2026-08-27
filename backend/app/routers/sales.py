@@ -130,7 +130,8 @@ def checkout(payload: CheckoutCreate, db: Session = Depends(get_db)) -> Sale:
                 )
             sale.items.append(SaleItem(
                 product_id=product.id, product_name=product.name, sku=product.sku,
-                unit_price=product.selling_price, quantity=quantity, line_total=line_total,
+                unit_price=product.selling_price, cost_price=product.cost_price,
+                quantity=quantity, line_total=line_total,
             ))
             db.add(InventoryMovement(
                 product_id=product.id, movement_type=MovementType.SALE, quantity_change=-quantity,

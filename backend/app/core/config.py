@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173"]
     product_lookup_timeout_seconds: float = 4.0
     open_food_facts_base_url: str = "https://world.openfoodfacts.org"
+    reporting_timezone: str = "Asia/Manila"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
