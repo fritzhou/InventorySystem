@@ -42,3 +42,5 @@ def upgrade():
 def downgrade():
     op.drop_table("expenses")
     op.drop_table("expense_categories")
+    if op.get_bind().dialect.name == "postgresql":
+        sa.Enum(name="expensestatus").drop(op.get_bind(), checkfirst=True)

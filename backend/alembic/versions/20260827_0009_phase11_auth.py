@@ -25,7 +25,8 @@ def upgrade() -> None:
             batch.alter_column("role", existing_type=sa.Enum("ADMIN", "CASHIER", name="user_role"), type_=sa.String(20), existing_nullable=False)
     # Existing installations should contain no usable accounts because authentication did not exist.
     # NULL is retained only long enough for portable migration; bootstrap refuses duplicate users.
-    op.execute("UPDATE users SET is_active = 0 WHERE password_hash IS NULL")
+    op.execute(sa.update(sa.table("users", sa.column("is_active"), sa.column("password_hash")))
+               .where(sa.column("password_hash").is_(None)).values(is_active=False))
     op.create_index("ux_users_email_lower", "users", [sa.text("lower(email)")], unique=True)
     op.create_table("user_sessions", sa.Column("id", sa.Uuid(), primary_key=True), sa.Column("user_id", sa.Uuid(), nullable=False), sa.Column("token_hash", sa.String(64), nullable=False), sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False), sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False), sa.Column("last_seen_at", sa.DateTime(timezone=True)), sa.Column("revoked_at", sa.DateTime(timezone=True)), sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="fk_user_sessions_user_id_users", ondelete="CASCADE"))
     op.create_index("ix_user_sessions_token_hash", "user_sessions", ["token_hash"], unique=True)
