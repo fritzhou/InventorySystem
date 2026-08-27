@@ -8,7 +8,13 @@ from app.database import Base
 from app import models  # noqa: F401
 
 config = context.config
-config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%", "%%"))
+# Programmatic callers (notably migration integration tests) may explicitly
+# supply a URL. Only replace the checked-in sentinel used by normal Alembic CLI
+# invocations; otherwise a cached application setting could silently redirect
+# a migration to a different database.
+configured_url = config.get_main_option("sqlalchemy.url")
+if not configured_url or configured_url == "sqlite:///unused.db":
+    config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%", "%%"))
 if config.config_file_name:
     fileConfig(config.config_file_name)
 target_metadata = Base.metadata
