@@ -77,7 +77,7 @@ def update_product(product_id: uuid.UUID, payload: ProductUpdate, db: Session = 
     if product is None:
         raise HTTPException(status_code=404, detail="Product not found.")
     changes = payload.model_dump(exclude_unset=True)
-    if "category_id" in changes:
+    if "category_id" in changes and changes["category_id"] is not None:
         _require_category(db, changes["category_id"])
     for field, value in changes.items():
         setattr(product, field, value)
