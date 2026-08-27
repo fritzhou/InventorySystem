@@ -114,9 +114,14 @@ def receive(id:uuid.UUID,payload:ReceiveInput,db:Session=Depends(get_db)):
         for req in payload.items:
             line=lines[req.item_id]; product=db.scalar(select(Product).where(Product.id==line.product_id).with_for_update())
             if not product: fail(409,"Product no longer exists.")
+            if not product.is_active: fail(409,"Product is inactive.")
             before=product.current_stock; after=before+req.quantity; old_cost=Decimal(product.cost_price)
             average=(Decimal(line.unit_cost) if before==0 else ((before*old_cost)+(req.quantity*Decimal(line.unit_cost)))/after).quantize(MONEY,rounding=ROUND_HALF_UP)
-            result=db.execute(update(Product).where(Product.id==product.id,Product.current_stock==before).values(current_stock=after,cost_price=average))
+            result=db.execute(update(Product).where(
+                Product.id == product.id,
+                Product.current_stock == before,
+                Product.is_active.is_(True),
+            ).values(current_stock=after, cost_price=average))
             if result.rowcount!=1: fail(409,"Inventory changed while receiving. Please try again.")
             line.received_quantity+=req.quantity
             db.add(InventoryMovement(product_id=product.id,movement_type=MovementType.RESTOCK,quantity_change=req.quantity,stock_before=before,stock_after=after,reference_type="PURCHASE_ORDER",reference_id=po.id,note=f"Received on {po.po_number}"))

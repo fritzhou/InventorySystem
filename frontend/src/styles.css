@@ -62,3 +62,8 @@ input, select { width: 100%; min-height: 42px; border: 1px solid #ccd5ce; border
 @media (max-width: 640px) { .metric-grid { grid-template-columns: 1fr 1fr; }.report-grid { grid-template-columns: 1fr; }.report-card.wide { grid-column: auto; }.inventory-columns { grid-template-columns: 1fr; }.report-filters > div .button { flex: 1; white-space: nowrap; }.custom-range { display: grid !important; grid-template-columns: 1fr 1fr; }.custom-range button { grid-column: 1 / -1; }.trend-chart { gap: 3px; }.trend-column small { display: none; } }
 /* Phase 8 purchasing */
 .po-row{display:grid;grid-template-columns:1.4fr .8fr .8fr .7fr auto;gap:18px;align-items:center;padding:18px 22px;border-bottom:1px solid #edf0ed}.po-row small{display:block;color:#718078;margin-top:4px}.po-form{padding:24px;display:grid;gap:18px}.po-form>label,.modal>label{display:block;font-size:12px;font-weight:700}.po-form input,.po-form select,.modal label input{margin-top:6px}.po-line{display:grid;grid-template-columns:2fr 100px 130px 120px auto;gap:10px;align-items:center}@media(max-width:700px){.po-row,.po-line{grid-template-columns:1fr}.po-row{margin:10px;border:1px solid #ddd;border-radius:10px}}
+.po-filters { display:grid; grid-template-columns:2fr 1.2fr 1.2fr 1fr 1fr auto auto; gap:12px; align-items:end; padding:20px; margin-bottom:18px; }
+.po-filters label { font-size:12px; font-weight:700; color:#4e5d54; }.po-filters input,.po-filters select { margin-top:6px; }
+.product-selector { display:grid; grid-template-columns:2fr 2fr auto; gap:10px; }
+@media(max-width:900px) { .po-filters { grid-template-columns:1fr 1fr; }.product-selector { grid-template-columns:1fr; } }
+@media(max-width:640px) { .po-filters { grid-template-columns:1fr; } }

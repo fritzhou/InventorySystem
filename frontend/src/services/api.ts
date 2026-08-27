@@ -41,6 +41,7 @@ export interface SaleFilters {
   pageSize?: number
 }
 export interface MovementFilters { productId?: string; movementType?: MovementType | ''; search?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }
+export interface PurchaseOrderFilters { search?: string; supplierId?: string; status?: string; fromDate?: string; toDate?: string; page?: number; pageSize?: number }
 
 export const api = {
   getHealth: () => request<{ status: string; service: string }>('/health'),
@@ -84,7 +85,15 @@ export const api = {
   createSupplier: (value:SupplierInput) => request<Supplier>('/api/suppliers',{method:'POST',body:JSON.stringify(value)}),
   updateSupplier: (id:string,value:Partial<SupplierInput>) => request<Supplier>(`/api/suppliers/${id}`,{method:'PATCH',body:JSON.stringify(value)}),
   deactivateSupplier: (id:string) => request<Supplier>(`/api/suppliers/${id}`,{method:'DELETE'}),
-  getPurchaseOrders: (params:Record<string,string>) => request<POPage>(`/api/purchase-orders?${new URLSearchParams(params)}`),
+  getPurchaseOrders: ({ search = '', supplierId = '', status = '', fromDate = '', toDate = '', page = 1, pageSize = 20 }: PurchaseOrderFilters = {}) => {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+    if (search.trim()) params.set('search', search.trim())
+    if (supplierId) params.set('supplier_id', supplierId)
+    if (status) params.set('status', status)
+    if (fromDate) params.set('from_date', fromDate)
+    if (toDate) params.set('to_date', toDate)
+    return request<POPage>(`/api/purchase-orders?${params}`)
+  },
   getPurchaseOrder: (id:string) => request<PurchaseOrder>(`/api/purchase-orders/${id}`),
   createPurchaseOrder: (value:POInput) => request<PurchaseOrder>('/api/purchase-orders',{method:'POST',body:JSON.stringify(value)}),
   updatePurchaseOrder: (id:string,value:POInput) => request<PurchaseOrder>(`/api/purchase-orders/${id}`,{method:'PATCH',body:JSON.stringify(value)}),
