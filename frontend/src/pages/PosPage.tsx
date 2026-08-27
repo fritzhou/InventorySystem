@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 
 import { BarcodeScanner } from '../components/BarcodeScanner'
+import { Receipt } from '../components/Receipt'
 import { ApiError, api } from '../services/api'
 import type { Product } from '../types/product'
 import type { Sale } from '../types/sale'
@@ -75,14 +76,7 @@ export function PosPage() {
     finally { setLoading(false) }
   }
 
-  if (sale) return <section className="receipt card" aria-label="Sale complete">
-    <div className="success-mark">✓</div><span className="eyebrow">Sale complete</span>
-    <h1>Payment received</h1><p className="receipt-number">Receipt {sale.receipt_number}</p>
-    <div className="receipt-lines">{sale.items.map((item) => <div key={item.id}><span><strong>{item.product_name}</strong><small>{item.sku} · {item.quantity} × {money(cents(item.unit_price))}</small></span><strong>{money(cents(item.line_total))}</strong></div>)}</div>
-    <dl className="receipt-totals"><div><dt>Total</dt><dd>{money(cents(sale.total))}</dd></div><div><dt>Cash received</dt><dd>{money(cents(sale.amount_tendered))}</dd></div><div className="change"><dt>Change</dt><dd>{money(cents(sale.change_due))}</dd></div></dl>
-    <time>{new Date(sale.created_at).toLocaleString()}</time>
-    <button className="button primary" onClick={() => { setSale(null); setCart([]); setCash(''); void search('') }}>New Sale</button>
-  </section>
+  if (sale) return <Receipt sale={sale} showComplete onNewSale={() => { setSale(null); setCart([]); setCash(''); void search('') }} />
 
   return <>
     <div className="page-heading"><div><span className="eyebrow">Cashier workspace</span><h1>Point of Sale</h1><p>Search or scan products, then take a secure cash payment.</p></div><button className="button secondary" onClick={() => setScanner(true)}>▣ Scan Barcode</button></div>

@@ -24,3 +24,20 @@ export interface Sale {
   created_at: string
   items: SaleItem[]
 }
+
+export interface SaleSummary {
+  id: string
+  receipt_number: string
+  created_at: string
+  payment_method: string
+  total: string
+  item_count: number
+}
+
+export interface SalesPage {
+  items: SaleSummary[]
+  page: number
+  page_size: number
+  total_items: number
+  total_pages: number
+}

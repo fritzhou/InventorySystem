@@ -58,7 +58,7 @@ test('shows cash change, sends only item identities and quantities, and renders 
   expect(screen.getByText('₱30.00')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Checkout' }))
   expect(await screen.findByLabelText('Sale complete')).toBeInTheDocument()
-  expect(screen.getByText('Receipt SF-ABC123')).toBeInTheDocument()
+  expect(screen.getByText('Receipt: SF-ABC123')).toBeInTheDocument()
   const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/api/sales'))
   expect(JSON.parse(String(call?.[1]?.body))).toEqual({ items: [{ product_id: coke.id, quantity: 2 }, { product_id: water.id, quantity: 1 }], amount_tendered: '100.00' })
 })

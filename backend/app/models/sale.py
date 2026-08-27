@@ -15,6 +15,7 @@ class Sale(Base):
         CheckConstraint("total >= 0", name="ck_sales_total_nonnegative"),
         CheckConstraint("amount_tendered >= total", name="ck_sales_tendered_covers_total"),
         CheckConstraint("change_due >= 0", name="ck_sales_change_nonnegative"),
+        Index("ix_sales_created_at", "created_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
