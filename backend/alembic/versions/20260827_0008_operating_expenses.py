@@ -42,3 +42,7 @@ def upgrade():
 def downgrade():
     op.drop_table("expenses")
     op.drop_table("expense_categories")
+    # PostgreSQL ENUM types are independent schema objects; without cleanup a
+    # downgrade followed by an upgrade fails because the type already exists.
+    if op.get_bind().dialect.name == "postgresql":
+        sa.Enum(name="expensestatus").drop(op.get_bind(), checkfirst=True)

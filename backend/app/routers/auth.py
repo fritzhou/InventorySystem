@@ -28,7 +28,7 @@ def login(payload: LoginInput, response: Response, db: Session = Depends(get_db)
     user.last_login_at = now
     db.commit()
     response.set_cookie(settings.session_cookie_name, secret, max_age=settings.session_expiration_hours * 3600,
-                        httponly=True, secure=settings.session_cookie_secure, samesite="lax", path="/")
+                        httponly=True, secure=settings.session_cookie_secure, samesite=settings.session_cookie_samesite, path="/")
     return user
 
 
@@ -41,7 +41,7 @@ def me(user: User = Depends(get_current_user)):
 def logout(response: Response, session: UserSession = Depends(get_current_session), db: Session = Depends(get_db)):
     session.revoked_at = utcnow()
     db.commit()
-    response.delete_cookie(settings.session_cookie_name, path="/", secure=settings.session_cookie_secure, httponly=True, samesite="lax")
+    response.delete_cookie(settings.session_cookie_name, path="/", secure=settings.session_cookie_secure, httponly=True, samesite=settings.session_cookie_samesite)
 
 
 @router.post("/change-password", response_model=UserRead)
