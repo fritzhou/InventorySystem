@@ -21,13 +21,17 @@ class ExpenseCategoryCreate(BaseModel):
 
 
 class ExpenseCategoryUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str | None = Field(None, min_length=1, max_length=100)
     description: str | None = None
 
     @field_validator("name")
     @classmethod
     def name_not_blank(cls, value):
-        return _text(value) if value is not None else value
+        if value is None:
+            raise ValueError("must not be null")
+        return _text(value)
 
 
 class ExpenseCategoryRead(BaseModel):
@@ -50,6 +54,8 @@ class ExpenseCreate(BaseModel):
 
 
 class ExpenseUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     category_id: uuid.UUID | None = None
     description: str | None = Field(None, min_length=1, max_length=255)
     amount: Decimal | None = Field(None, gt=0, max_digits=12, decimal_places=2)
@@ -59,7 +65,16 @@ class ExpenseUpdate(BaseModel):
     @field_validator("description")
     @classmethod
     def description_not_blank(cls, value):
-        return _text(value) if value is not None else value
+        if value is None:
+            raise ValueError("must not be null")
+        return _text(value)
+
+    @field_validator("category_id", "amount", "expense_date")
+    @classmethod
+    def required_fields_not_null(cls, value):
+        if value is None:
+            raise ValueError("must not be null")
+        return value
 
 
 class ExpenseVoid(BaseModel):

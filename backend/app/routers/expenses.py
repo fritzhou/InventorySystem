@@ -1,15 +1,13 @@
 import secrets
 import uuid
 from datetime import date, datetime, timezone
-from decimal import Decimal
 from math import ceil
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.database import get_db
 from app.models import Expense, ExpenseCategory, ExpenseStatus
 from app.routers.reports import _timezone
@@ -88,6 +86,8 @@ def create_expense(payload: ExpenseCreate, db: Session = Depends(get_db)):
 def expenses(search: str = "", category_id: uuid.UUID | None = None, status: ExpenseStatus | None = None,
              start_date: date | None = None, end_date: date | None = None,
              page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), db: Session = Depends(get_db)):
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(status_code=422, detail="From date cannot be after To date")
     filters = []
     if search.strip():
         term = f"%{search.strip().lower()}%"
@@ -113,12 +113,11 @@ def update_expense(expense_id: uuid.UUID, payload: ExpenseUpdate, db: Session = 
     item = get_expense(expense_id, db)
     if item.status == ExpenseStatus.VOIDED: raise HTTPException(409, "Voided expenses cannot be edited")
     values = payload.model_dump(exclude_unset=True)
-    if values.get("category_id"):
+    if "category_id" in values and values["category_id"] != item.category_id:
         # An expense may retain its historical category after that category is
         # deactivated, but it cannot be moved to an inactive category.
-        category = _category(db, values["category_id"], active=values["category_id"] != item.category_id)
-        if category.is_active:
-            item.category_name = category.name
+        category = _category(db, values["category_id"], active=True)
+        item.category_name = category.name
     for key, value in values.items(): setattr(item, key, value)
     db.commit(); db.refresh(item)
     return item
@@ -126,8 +125,15 @@ def update_expense(expense_id: uuid.UUID, payload: ExpenseUpdate, db: Session = 
 
 @router.post("/expenses/{expense_id}/void", response_model=ExpenseRead)
 def void_expense(expense_id: uuid.UUID, payload: ExpenseVoid, db: Session = Depends(get_db)):
-    item = get_expense(expense_id, db)
-    if item.status == ExpenseStatus.VOIDED: raise HTTPException(409, "Expense is already voided")
-    item.status = ExpenseStatus.VOIDED; item.void_reason = payload.reason; item.voided_at = datetime.now(timezone.utc)
-    db.commit(); db.refresh(item)
-    return item
+    # A conditional transition is atomic on both PostgreSQL and SQLite. It
+    # prevents two stale readers from each reporting a successful first void.
+    result = db.execute(update(Expense).where(
+        Expense.id == expense_id, Expense.status == ExpenseStatus.ACTIVE,
+    ).values(status=ExpenseStatus.VOIDED, void_reason=payload.reason, voided_at=datetime.now(timezone.utc)))
+    if result.rowcount == 0:
+        db.rollback()
+        if db.get(Expense, expense_id) is None:
+            raise HTTPException(404, "Expense not found")
+        raise HTTPException(409, "Expense is already voided")
+    db.commit()
+    return db.get(Expense, expense_id)
