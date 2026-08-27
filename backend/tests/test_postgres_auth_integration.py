@@ -40,12 +40,13 @@ def test_postgres_phase11_authentication_smoke():
     with TestClient(application) as client:
         login = client.post("/api/auth/login", json={"email": "postgres-auth@example.com", "password": "postgres-password-123"})
         assert login.status_code == 200
-        assert "password" not in login.text.lower()
+        sensitive_fields = {"password", "password_hash", "session_token", "token_hash"}
+        assert sensitive_fields.isdisjoint(login.json())
         raw_token = client.cookies.get("stockflow_session")
         assert raw_token
         me = client.get("/api/auth/me")
         assert me.status_code == 200 and me.json()["email"] == "postgres-auth@example.com"
-        assert "password" not in me.text.lower()
+        assert sensitive_fields.isdisjoint(me.json())
         with session_factory() as session:
             stored = session.scalar(select(UserSession))
             assert stored is not None and stored.token_hash != raw_token
