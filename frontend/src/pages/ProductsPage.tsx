@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 
 import { CategoryForm } from '../components/CategoryForm'
+import { BarcodeScanner } from '../components/BarcodeScanner'
 import { ProductForm } from '../components/ProductForm'
 import { ProductTable } from '../components/ProductTable'
-import { api } from '../services/api'
+import { api, ApiError } from '../services/api'
 import { useProducts } from '../hooks/useProducts'
 import type { Category } from '../types/category'
 import type { Product, ProductInput, ProductUpdateInput } from '../types/product'
@@ -23,6 +24,12 @@ export function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [confirmingProduct, setConfirmingProduct] = useState<Product | null>(null)
+  const [isScannerOpen, setIsScannerOpen] = useState(false)
+  const [scannerKey, setScannerKey] = useState(0)
+  const [scannedBarcode, setScannedBarcode] = useState('')
+  const [scannedProduct, setScannedProduct] = useState<Product | null>(null)
+  const [scanStatus, setScanStatus] = useState<'scanning' | 'looking-up' | 'found' | 'unknown' | 'error'>('scanning')
+  const [scanError, setScanError] = useState('')
 
   useEffect(() => {
     api.getCategories().then(setCategories).catch((requestError: unknown) => {
@@ -30,10 +37,33 @@ export function ProductsPage() {
     })
   }, [])
 
-  const openCreate = () => { setEditingProduct(null); setFormError(null); setIsFormOpen(true) }
+  const openCreate = (barcode = '') => { setEditingProduct(null); setFormError(null); setScannedBarcode(barcode); setIsFormOpen(true) }
   const openEdit = (product: Product) => { setEditingProduct(product); setFormError(null); setIsFormOpen(true) }
   const closeForm = () => { if (!isSaving) setIsFormOpen(false) }
   const submitSearch = (event: FormEvent) => { event.preventDefault(); setSearch(searchInput) }
+
+  const openScanner = () => {
+    setScannedBarcode(''); setScannedProduct(null); setScanStatus('scanning'); setScanError('')
+    setScannerKey((key) => key + 1); setIsScannerOpen(true)
+  }
+  const closeScanner = () => setIsScannerOpen(false)
+  const handleBarcode = async (barcode: string) => {
+    setScannedBarcode(barcode); setScanStatus('looking-up'); setScanError('')
+    try {
+      const found = await api.getProductByBarcode(barcode)
+      setScannedProduct(found); setScanStatus('found')
+    } catch (requestError) {
+      setScannedProduct(null)
+      if (requestError instanceof ApiError && requestError.status === 404) setScanStatus('unknown')
+      else { setScanStatus('error'); setScanError(requestError instanceof Error ? requestError.message : 'Could not look up this barcode.') }
+    }
+  }
+  const retryScanner = () => {
+    setScannedBarcode(''); setScannedProduct(null); setScanStatus('scanning'); setScanError('')
+    setScannerKey((key) => key + 1)
+  }
+  const addScannedProduct = () => { setIsScannerOpen(false); openCreate(scannedBarcode) }
+  const editScannedProduct = () => { if (scannedProduct) { setIsScannerOpen(false); openEdit(scannedProduct) } }
 
   const saveProduct = async (values: ProductInput | ProductUpdateInput) => {
     setIsSaving(true); setFormError(null)
@@ -71,7 +101,7 @@ export function ProductsPage() {
 
   return (
     <section aria-labelledby="products-heading">
-      <div className="page-heading"><div><span className="eyebrow">Inventory catalog</span><h1 id="products-heading">Products</h1><p>Manage product details, pricing, barcodes, and stock thresholds.</p></div><button className="button primary" onClick={openCreate}>+ New product</button></div>
+      <div className="page-heading"><div><span className="eyebrow">Inventory catalog</span><h1 id="products-heading">Products</h1><p>Manage product details, pricing, barcodes, and stock thresholds.</p></div><div className="heading-actions"><button className="button secondary" onClick={openScanner}>Scan barcode</button><button className="button primary" onClick={() => openCreate()}>+ New product</button></div></div>
       <div className="management-layout">
         <div className="card product-list-card">
           <form className="filters" onSubmit={submitSearch}>
@@ -86,7 +116,15 @@ export function ProductsPage() {
         </div>
         <aside className="card categories-card"><div><span className="eyebrow">Organization</span><h2>Categories</h2></div><ul className="category-list">{categories.map((category) => <li key={category.id}><strong>{category.name}</strong><span>{category.description || 'No description'}</span></li>)}</ul>{categories.length === 0 && !categoryError && <p className="muted">Create your first category before adding products.</p>}<CategoryForm isSaving={isCategorySaving} error={categoryError} onSubmit={createCategory} /></aside>
       </div>
-      {isFormOpen && <div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><div className="modal-heading"><div><span className="eyebrow">{editingProduct ? 'Update catalog' : 'Catalog setup'}</span><h2 id="product-form-title">{editingProduct ? 'Edit product' : 'Create product'}</h2></div><button className="icon-button" aria-label="Close" onClick={closeForm}>×</button></div>{categories.length === 0 && <p className="notice">Create a category before adding a product.</p>}<ProductForm categories={categories} product={editingProduct} isSaving={isSaving} error={formError} onCancel={closeForm} onSubmit={saveProduct} /></section></div>}
+      {isFormOpen && <div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><div className="modal-heading"><div><span className="eyebrow">{editingProduct ? 'Update catalog' : 'Catalog setup'}</span><h2 id="product-form-title">{editingProduct ? 'Edit product' : 'Create product'}</h2></div><button className="icon-button" aria-label="Close" onClick={closeForm}>×</button></div>{categories.length === 0 && <p className="notice">Create a category before adding a product.</p>}<ProductForm categories={categories} product={editingProduct} initialBarcode={editingProduct ? '' : scannedBarcode} isSaving={isSaving} error={formError} onCancel={closeForm} onSubmit={saveProduct} /></section></div>}
+      {isScannerOpen && <div className="modal-backdrop scanner-backdrop" role="presentation"><section className="modal scanner-modal" role="dialog" aria-modal="true" aria-labelledby="scanner-title"><div className="modal-heading"><div><span className="eyebrow">Camera scanner</span><h2 id="scanner-title">Scan barcode</h2></div><button className="icon-button" aria-label="Close scanner" onClick={closeScanner}>×</button></div>
+        {scanStatus === 'scanning' && <BarcodeScanner key={scannerKey} onDetected={handleBarcode} />}
+        {scanStatus === 'looking-up' && <div className="scan-result" role="status"><span className="success-mark">✓</span><h3>Barcode detected</h3><code>{scannedBarcode}</code><p>Looking up product…</p></div>}
+        {scanStatus === 'found' && scannedProduct && <div className="scan-result"><span className="success-mark">✓</span><p className="success-copy">Scan successful</p><h3>{scannedProduct.name}</h3><dl><div><dt>SKU</dt><dd>{scannedProduct.sku}</dd></div><div><dt>Barcode</dt><dd>{scannedProduct.barcode}</dd></div><div><dt>Category</dt><dd>{categories.find((item) => item.id === scannedProduct.category_id)?.name ?? 'Uncategorized'}</dd></div><div><dt>Selling price</dt><dd>${Number(scannedProduct.selling_price).toFixed(2)}</dd></div><div><dt>Current stock</dt><dd>{scannedProduct.current_stock}</dd></div><div><dt>Minimum stock</dt><dd>{scannedProduct.minimum_stock}</dd></div><div><dt>Stock status</dt><dd>{scannedProduct.current_stock === 0 ? 'Out of stock' : scannedProduct.current_stock <= scannedProduct.minimum_stock ? 'Low stock' : 'In stock'}</dd></div></dl><div className="form-actions"><button className="button secondary" onClick={retryScanner}>Retry scanning</button><button className="button primary" onClick={editScannedProduct}>Edit Product</button></div></div>}
+        {scanStatus === 'unknown' && <div className="scan-result"><h3>Product not registered</h3><p>No product is registered with barcode <strong>{scannedBarcode}</strong>.</p><div className="form-actions"><button className="button secondary" onClick={retryScanner}>Retry scanning</button><button className="button primary" onClick={addScannedProduct}>Add Product</button></div></div>}
+        {scanStatus === 'error' && <div className="scan-result"><p className="error" role="alert">{scanError}</p><button className="button secondary" onClick={retryScanner}>Retry scanning</button></div>}
+        <button className="button scanner-close" onClick={closeScanner}>Close scanner</button>
+      </section></div>}
       {confirmingProduct && <div className="modal-backdrop" role="presentation"><section className="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="deactivate-title"><h2 id="deactivate-title">Deactivate {confirmingProduct.name}?</h2><p>The product will no longer appear in active product searches, but its record will remain available for business history.</p>{formError && <p className="error">{formError}</p>}<div className="form-actions"><button className="button secondary" disabled={isSaving} onClick={() => setConfirmingProduct(null)}>Cancel</button><button className="button danger-button" disabled={isSaving} onClick={deactivate}>{isSaving ? 'Deactivating…' : 'Deactivate product'}</button></div></section></div>}
     </section>
   )

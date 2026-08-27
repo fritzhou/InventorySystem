@@ -37,6 +37,7 @@ export const api = {
     if (categoryId) params.set('category_id', categoryId)
     return request<Product[]>(`/api/products?${params}`)
   },
+  getProductByBarcode: (barcode: string) => request<Product>(`/api/products/barcode/${encodeURIComponent(barcode)}`),
   createProduct: (product: ProductInput) => request<Product>('/api/products', { method: 'POST', body: JSON.stringify(product) }),
   updateProduct: (id: string, product: ProductUpdateInput) => request<Product>(`/api/products/${id}`, { method: 'PATCH', body: JSON.stringify(product) }),
   deactivateProduct: (id: string) => request<Product>(`/api/products/${id}`, { method: 'DELETE' }),
