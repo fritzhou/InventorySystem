@@ -19,7 +19,7 @@ const glyphs: Record<string, ReactNode> = {
 }
 
 function Icon({ name }: { name: string }) { return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{glyphs[name] ?? glyphs.Products}</svg> }
-function Logo() { return <svg className="stockflow-logo" viewBox="0 0 40 40" aria-hidden="true"><path d="M7 11 20 4l13 7-13 7z"/><path d="m7 19 13 7 13-7v8l-13 7-13-7z"/><path d="m12 14 8 4 8-4v5l-8 4-8-4z"/></svg> }
+export function StockFlowLogo() { return <svg className="stockflow-logo" viewBox="0 0 40 40" aria-hidden="true"><path d="M8 10h19c4 0 6 2 6 5s-2 5-6 5H14c-4 0-6 2-6 5s2 5 6 5h18"/><circle cx="8" cy="10" r="2"/><circle cx="32" cy="30" r="2"/></svg> }
 
 export function AppShell({ user, activePath, items, onLogout, children }: { user: AuthUser; activePath: string; items: NavigationItem[]; onLogout: () => void; children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('stockflow:sidebar') === 'collapsed')
@@ -29,7 +29,7 @@ export function AppShell({ user, activePath, items, onLogout, children }: { user
   const initials = user.display_name.split(/\s+/).map((word) => word[0]).join('').slice(0, 2).toUpperCase()
   return <div className={`app-shell ${collapsed ? 'sidebar-collapsed' : ''} ${mobileOpen ? 'mobile-nav-open' : ''}`}>
     <aside className="sidebar" aria-label="Application sidebar">
-      <div className="sidebar-brand"><a href={user.role === 'ADMIN' ? '/dashboard' : '/pos'} aria-label="StockFlow home"><Logo/><span><b>StockFlow</b><small>Inventory management</small></span></a><button className="sidebar-collapse" onClick={toggle} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>‹</button></div>
+      <div className="sidebar-brand"><a href={user.role === 'ADMIN' ? '/dashboard' : '/pos'} aria-label="StockFlow home"><StockFlowLogo/><span><b>StockFlow</b><small>Inventory management</small></span></a><button className="sidebar-collapse" onClick={toggle} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>‹</button></div>
       <nav className="side-nav" aria-label="Main navigation">{(['main', 'finance', 'management'] as const).map((group) => {
         const available = items.filter((item) => item.group === group && item.roles.includes(user.role)); if (!available.length) return null
         return <section key={group}><h2>{group === 'main' ? 'Main' : group === 'finance' ? 'Finance & reporting' : 'Management'}</h2>{available.map((item) => <a title={collapsed ? item.label : undefined} className={activePath === item.path ? 'active' : ''} href={item.path} key={item.path}><Icon name={item.label}/><span>{item.label}</span></a>)}</section>

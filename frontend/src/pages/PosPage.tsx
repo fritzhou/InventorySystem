@@ -78,7 +78,7 @@ export function PosPage() {
 
   if (sale) return <Receipt sale={sale} showComplete onNewSale={() => { setSale(null); setCart([]); setCash(''); void search('') }} />
 
-  return <>
+  return <div className="page-content pos-page">
     <div className="page-heading"><div><span className="eyebrow">Cashier workspace</span><h1>Point of Sale</h1><p>Search or scan products, then take a secure cash payment.</p></div><button className="button secondary" onClick={() => setScanner(true)}>▣ Scan Barcode</button></div>
     {message && <div className="error pos-message" role="alert">{message}{message === 'Product not registered in inventory' && <> · <a href="/">Register product</a></>}</div>}
     <div className="pos-layout">
@@ -91,5 +91,5 @@ export function PosPage() {
       </section>
     </div>
     {scanner && <div className="modal-backdrop scanner-backdrop"><section className="modal scanner-modal"><div className="modal-heading"><div><span className="eyebrow">Point of Sale</span><h2>Scan Barcode</h2></div><button className="icon-button" aria-label="Close scanner" onClick={() => setScanner(false)}>×</button></div><BarcodeScanner onDetected={(barcode) => void scanned(barcode)} /><button className="button scanner-close" onClick={() => setScanner(false)}>Cancel</button></section></div>}
-  </>
+  </div>
 }

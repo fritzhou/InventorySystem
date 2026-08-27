@@ -46,7 +46,7 @@ export function SalesHistoryPage() {
 
   if (completedReturn) return <><button className="text-button back-button" onClick={() => { setCompletedReturn(null); setSale(null) }}>← Back to Sales History</button><ReturnReceipt value={completedReturn} /></>
   if (sale) { const available = sale.items.reduce((sum,item)=>sum+(item.returnable_quantity ?? item.quantity),0); return <><button className="text-button back-button" onClick={() => setSale(null)}>← Back to Sales History</button><Receipt sale={sale} /><section className="card return-summary"><h2>Return eligibility {available === 0 && <span className="fully-returned">FULLY RETURNED</span>}</h2>{sale.items.map(item=><div key={item.id}><span>{item.product_name}: Sold {item.quantity} · Returned {item.returned_quantity ?? 0} · Returnable {item.returnable_quantity ?? item.quantity}</span></div>)}{available>0&&<button className="button primary" onClick={()=>setReturning(true)}>Process Return</button>}</section>{returning&&<ReturnModal sale={sale} onCancel={()=>setReturning(false)} onComplete={setCompletedReturn}/>}</> }
-  return <>
+  return <div className="page-content sales-page">
     <div className="page-heading"><div><span className="eyebrow">Transactions</span><h1>Sales History</h1><p>Find completed sales and reprint their receipts.</p></div></div>
     <form className="card history-filters" onSubmit={apply}>
       <label className="history-search">Search receipt<input aria-label="Search receipt" placeholder="Search receipt..." value={search} onChange={(e) => setSearch(e.target.value)} /></label>
@@ -64,5 +64,5 @@ export function SalesHistoryPage() {
       </article>)}
     </section>
     {!loading && data.items.length > 0 && <div className="pagination"><button className="button secondary" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>Previous</button><span>Page {data.page} of {data.total_pages}</span><button className="button secondary" disabled={page >= data.total_pages} onClick={() => setPage((p) => p + 1)}>Next</button></div>}
-  </>
+  </div>
 }
