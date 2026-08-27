@@ -9,6 +9,7 @@ const json=(value:unknown,status=200)=>new Response(status===204?null:JSON.strin
 afterEach(()=>{cleanup();vi.restoreAllMocks();window.history.replaceState({},'','/login')})
 
 test('initializes authentication and renders login after me returns 401',async()=>{
+  window.history.replaceState({},'','/dashboard')
   vi.spyOn(globalThis,'fetch').mockResolvedValue(json({detail:'Authentication required'},401))
   render(<AuthProvider><App/></AuthProvider>)
   expect(screen.getByText('Loading StockFlow…')).toBeInTheDocument()
@@ -24,11 +25,11 @@ test('failed login shows generic error and does not emit session expiration',asy
   window.removeEventListener('stockflow:session-expired',expired)
 })
 
-test.each([['ADMIN',false,'/dashboard'],['MANAGER',false,'/pos'],['CASHIER',false,'/pos'],['CASHIER',true,'/account']] as const)('successful %s login uses an allowed landing page',async(role,mustChange,landing)=>{
+test.each([['ADMIN',false,'/dashboard','Dashboard'],['MANAGER',false,'/pos','Point of Sale'],['CASHIER',false,'/pos','Point of Sale'],['CASHIER',true,'/account','Account']] as const)('successful %s login uses an allowed landing page',async(role,mustChange,landing,heading)=>{
   vi.spyOn(globalThis,'fetch').mockResolvedValueOnce(json({detail:'Authentication required'},401)).mockResolvedValueOnce(json(user(role,mustChange)))
   render(<AuthProvider><App/></AuthProvider>);await screen.findByRole('button',{name:'Sign In'})
   fireEvent.change(screen.getByLabelText('Email'),{target:{value:`${role.toLowerCase()}@example.com`}});fireEvent.change(screen.getByLabelText('Password'),{target:{value:'valid-password'}});fireEvent.click(screen.getByRole('button',{name:'Sign In'}))
-  await waitFor(()=>expect(window.location.pathname).toBe(landing))
+  await waitFor(()=>expect(window.location.pathname).toBe(landing));expect(await screen.findByRole('heading',{name:heading})).toBeInTheDocument()
 })
 
 function Probe(){const {user,logout}=useAuth();return <><span>{user?.role??'signed-out'}</span><button onClick={()=>void logout()}>Log out</button></>}
@@ -37,6 +38,14 @@ test('protected 401 clears auth while 403 does not',async()=>{
   render(<AuthProvider><Probe/></AuthProvider>);expect(await screen.findByText('ADMIN')).toBeInTheDocument()
   await expect(api.getExpenses()).rejects.toMatchObject({status:403});expect(screen.getByText('ADMIN')).toBeInTheDocument()
   await expect(api.getExpenses()).rejects.toMatchObject({status:401});await waitFor(()=>expect(screen.getByText('signed-out')).toBeInTheDocument())
+})
+
+test('expired protected request renders the login page',async()=>{
+  window.history.replaceState({},'','/account')
+  vi.spyOn(globalThis,'fetch').mockResolvedValueOnce(json(user('ADMIN'))).mockResolvedValueOnce(json({detail:'Expired'},401))
+  render(<AuthProvider><App/></AuthProvider>);expect(await screen.findByRole('heading',{name:'Account'})).toBeInTheDocument()
+  await expect(api.getExpenses()).rejects.toMatchObject({status:401})
+  expect(await screen.findByRole('button',{name:'Sign In'})).toBeInTheDocument();expect(window.location.pathname).toBe('/login')
 })
 
 test('logout clears the authenticated user',async()=>{
