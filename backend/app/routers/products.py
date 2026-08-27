@@ -6,11 +6,19 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies.auth import any_role, manager_role
+from app.models.user import User
 from app.models import Category, Product
 from app.schemas.product import ProductCreate, ProductLookupRead, ProductRead, ProductUpdate
 from app.services.product_lookup import ProviderUnavailableError, ProductLookupProvider, get_product_lookup_provider
 
-router = APIRouter(prefix="/api/products", tags=["products"])
+router = APIRouter(prefix="/api/products", tags=["products"], dependencies=[Depends(any_role)])
+
+
+def _safe(product: Product, user: User) -> dict:
+    data = ProductRead.model_validate(product).model_dump(mode="json")
+    if user.role == "CASHIER": data.pop("cost_price", None)
+    return data
 
 
 def _commit_product(db: Session, product: Product) -> Product:
@@ -28,15 +36,15 @@ def _require_category(db: Session, category_id: uuid.UUID) -> None:
         raise HTTPException(status_code=422, detail="Category does not exist.")
 
 
-@router.get("", response_model=list[ProductRead])
+@router.get("", response_model=None)
 def list_products(
     search: str | None = None,
     category_id: uuid.UUID | None = None,
     active_only: bool = True,
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
-) -> list[Product]:
+    db: Session = Depends(get_db), user: User = Depends(any_role),
+) -> list[dict]:
     statement = select(Product)
     if active_only:
         statement = statement.where(Product.is_active.is_(True))
@@ -45,26 +53,26 @@ def list_products(
     if search:
         term = f"%{search.strip()}%"
         statement = statement.where(or_(Product.name.ilike(term), Product.sku.ilike(term), Product.barcode.ilike(term)))
-    return list(db.scalars(statement.order_by(Product.name).offset(offset).limit(limit)))
+    return [_safe(product, user) for product in db.scalars(statement.order_by(Product.name).offset(offset).limit(limit))]
 
 
-@router.get("/barcode/{barcode}", response_model=ProductRead)
-def get_product_by_barcode(barcode: str, db: Session = Depends(get_db)) -> Product:
+@router.get("/barcode/{barcode}", response_model=None)
+def get_product_by_barcode(barcode: str, db: Session = Depends(get_db), user: User = Depends(any_role)) -> dict:
     product = db.scalar(select(Product).where(Product.barcode == barcode))
     if product is None:
         raise HTTPException(status_code=404, detail="Product not found.")
-    return product
+    return _safe(product, user)
 
 
 @router.get("/barcode/{barcode}/lookup", response_model=ProductLookupRead)
 def lookup_product_by_barcode(
     barcode: str,
     db: Session = Depends(get_db),
-    provider: ProductLookupProvider = Depends(get_product_lookup_provider),
-) -> ProductLookupRead:
+    provider: ProductLookupProvider = Depends(get_product_lookup_provider), user: User = Depends(any_role),
+) -> ProductLookupRead | dict:
     product = db.scalar(select(Product).where(Product.barcode == barcode))
     if product is not None:
-        return ProductLookupRead(found=True, source="stockflow", product=ProductRead.model_validate(product))
+        return {"found": True, "source": "stockflow", "product": _safe(product, user)}
     try:
         external_product = provider.lookup(barcode)
     except ProviderUnavailableError:
@@ -75,7 +83,7 @@ def lookup_product_by_barcode(
 
 
 @router.get("/{product_id}", response_model=ProductRead)
-def get_product(product_id: uuid.UUID, db: Session = Depends(get_db)) -> Product:
+def get_product(product_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(manager_role)) -> Product:
     product = db.get(Product, product_id)
     if product is None:
         raise HTTPException(status_code=404, detail="Product not found.")
@@ -83,7 +91,7 @@ def get_product(product_id: uuid.UUID, db: Session = Depends(get_db)) -> Product
 
 
 @router.post("", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
-def create_product(payload: ProductCreate, db: Session = Depends(get_db)) -> Product:
+def create_product(payload: ProductCreate, db: Session = Depends(get_db), user: User = Depends(manager_role)) -> Product:
     _require_category(db, payload.category_id)
     product = Product(**payload.model_dump())
     db.add(product)
@@ -91,7 +99,7 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db)) -> Pro
 
 
 @router.patch("/{product_id}", response_model=ProductRead)
-def update_product(product_id: uuid.UUID, payload: ProductUpdate, db: Session = Depends(get_db)) -> Product:
+def update_product(product_id: uuid.UUID, payload: ProductUpdate, db: Session = Depends(get_db), user: User = Depends(manager_role)) -> Product:
     product = db.get(Product, product_id)
     if product is None:
         raise HTTPException(status_code=404, detail="Product not found.")
@@ -104,7 +112,7 @@ def update_product(product_id: uuid.UUID, payload: ProductUpdate, db: Session = 
 
 
 @router.delete("/{product_id}", response_model=ProductRead)
-def deactivate_product(product_id: uuid.UUID, db: Session = Depends(get_db)) -> Product:
+def deactivate_product(product_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(manager_role)) -> Product:
     product = db.get(Product, product_id)
     if product is None:
         raise HTTPException(status_code=404, detail="Product not found.")

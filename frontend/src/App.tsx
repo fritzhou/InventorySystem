@@ -1,31 +1,14 @@
-import { ProductsPage } from './pages/ProductsPage'
-import { PosPage } from './pages/PosPage'
-import { SalesHistoryPage } from './pages/SalesHistoryPage'
-import { InventoryHistoryPage } from './pages/InventoryHistoryPage'
-import { DashboardPage } from './pages/DashboardPage'
-import { ReportsPage } from './pages/ReportsPage'
-import { SuppliersPage } from './pages/SuppliersPage'
-import { PurchaseOrdersPage } from './pages/PurchaseOrdersPage'
-import { ReturnsPage } from './pages/ReturnsPage'
-import { ExpensesPage } from './pages/ExpensesPage'
-import './styles.css'
+import type { ReactElement } from 'react'
+import { ProductsPage } from './pages/ProductsPage';import { PosPage } from './pages/PosPage';import { SalesHistoryPage } from './pages/SalesHistoryPage';import { InventoryHistoryPage } from './pages/InventoryHistoryPage';import { DashboardPage } from './pages/DashboardPage';import { ReportsPage } from './pages/ReportsPage';import { SuppliersPage } from './pages/SuppliersPage';import { PurchaseOrdersPage } from './pages/PurchaseOrdersPage';import { ReturnsPage } from './pages/ReturnsPage';import { ExpensesPage } from './pages/ExpensesPage';import { LoginPage } from './pages/LoginPage';import { UsersPage } from './pages/UsersPage';import { AuditLogPage } from './pages/AuditLogPage';import { AccountPage } from './pages/AccountPage';import { useAuth,type Role } from './auth';import './styles.css'
 
-export default function App() {
-  const path = window.location.pathname
-  const isPos = path === '/pos'
-  const isHistory = path === '/sales'
-  const isInventoryHistory = path === '/inventory'
-  const isDashboard = path === '/dashboard'
-  const isReports = path === '/reports'
-  const isSuppliers = path === '/suppliers'
-  const isPurchasing = path.startsWith('/purchase-orders')
-  const isProducts = path === '/'
-  const isReturns = path === '/returns'
-  const isExpenses = path === '/expenses'
-  return (
-    <div className="app-shell">
-      <header><a className="brand" href="/dashboard" aria-label="StockFlow home"><span>SF</span>StockFlow</a><nav aria-label="Main navigation"><a className={isDashboard ? 'active' : ''} href="/dashboard">Dashboard</a><a className={isProducts ? 'active' : ''} href="/">Products</a><a className={isPos ? 'active' : ''} href="/pos">Point of Sale</a><a className={isHistory ? 'active' : ''} href="/sales">Sales History</a><a className={isReturns ? 'active' : ''} href="/returns">Returns</a><a className={isInventoryHistory ? 'active' : ''} href="/inventory">Inventory History</a><a className={isExpenses ? 'active' : ''} href="/expenses">Expenses</a><a className={isReports ? 'active' : ''} href="/reports">Reports</a><a className={isPurchasing ? 'active' : ''} href="/purchase-orders">Purchase Orders</a><a className={isSuppliers ? 'active' : ''} href="/suppliers">Suppliers</a></nav><div className="api-badge"><i /> StockFlow</div></header>
-      <main>{isExpenses?<ExpensesPage/>:isReturns?<ReturnsPage/>:isSuppliers?<SuppliersPage/>:isPurchasing?<PurchaseOrdersPage/>:isDashboard ? <DashboardPage /> : isReports ? <ReportsPage /> : isPos ? <PosPage /> : isHistory ? <SalesHistoryPage /> : isInventoryHistory ? <InventoryHistoryPage /> : <ProductsPage />}</main>
-    </div>
-  )
+const routes:Record<string,{roles:Role[];label:string;view:()=>ReactElement}>={
+  '/dashboard':{roles:['ADMIN'],label:'Dashboard',view:DashboardPage}, '/':{roles:['ADMIN','MANAGER'],label:'Products',view:ProductsPage},
+  '/pos':{roles:['ADMIN','MANAGER','CASHIER'],label:'Point of Sale',view:PosPage}, '/sales':{roles:['ADMIN','MANAGER','CASHIER'],label:'Sales History',view:SalesHistoryPage},
+  '/returns':{roles:['ADMIN','MANAGER'],label:'Returns',view:ReturnsPage}, '/inventory':{roles:['ADMIN','MANAGER'],label:'Inventory History',view:InventoryHistoryPage},
+  '/expenses':{roles:['ADMIN'],label:'Expenses',view:ExpensesPage}, '/reports':{roles:['ADMIN'],label:'Reports',view:ReportsPage},
+  '/purchase-orders':{roles:['ADMIN','MANAGER'],label:'Purchase Orders',view:PurchaseOrdersPage}, '/suppliers':{roles:['ADMIN','MANAGER'],label:'Suppliers',view:SuppliersPage},
+  '/users':{roles:['ADMIN'],label:'Users',view:UsersPage}, '/audit-log':{roles:['ADMIN'],label:'Audit Log',view:AuditLogPage},
+  '/account':{roles:['ADMIN','MANAGER','CASHIER'],label:'Account',view:AccountPage},
 }
+export default function App(){const {user,loading,logout}=useAuth();const path=window.location.pathname;if(loading)return <main className="loading-screen">Loading StockFlow…</main>;if(!user)return path==='/login'?<LoginPage/>:<Redirect to="/login"/>;if(path==='/login')return <Redirect to={user.role==='ADMIN'?'/dashboard':'/pos'}/>;if(user.must_change_password&&path!=='/account')return <Redirect to="/account"/>;const normalized=path.startsWith('/purchase-orders')?'/purchase-orders':path;const route=routes[normalized];if(!route||!route.roles.includes(user.role))return <div className="auth-page"><section className="auth-card"><h1>Access denied</h1><p>You do not have permission to view this screen.</p><a href="/pos">Return to Point of Sale</a></section></div>;const View=route.view;return <div className="app-shell"><header><a className="brand" href={user.role==='ADMIN'?'/dashboard':'/pos'}><span>SF</span>StockFlow</a><nav aria-label="Main navigation">{Object.entries(routes).filter(([p,r])=>p!=='/account'&&r.roles.includes(user.role)).map(([p,r])=><a className={normalized===p?'active':''} href={p} key={p}>{r.label}</a>)}</nav><div className="account-area"><a href="/account">{user.display_name}<small>{user.role}</small></a><button onClick={()=>void logout()}>Logout</button></div></header><main><View/></main></div>}
+function Redirect({to}:{to:string}){window.location.replace(to);return <main className="loading-screen">Redirecting…</main>}

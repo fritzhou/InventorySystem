@@ -9,11 +9,14 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
+from app.dependencies.auth import manager_role
+from app.models.user import User
+from app.audit import record_audit
 from app.core.config import get_settings
 from app.models import InventoryMovement, MovementType, Product, Sale, SaleItem, SaleReturn, SaleReturnItem
 from app.schemas.return_ import ReturnsPage, SaleReturnCreate, SaleReturnRead
 
-router = APIRouter(tags=["returns"])
+router = APIRouter(tags=["returns"], dependencies=[Depends(manager_role)])
 CENT = Decimal("0.01")
 
 
@@ -33,7 +36,7 @@ def _loaded_return(db: Session, return_id: uuid.UUID):
 
 
 @router.post("/api/sales/{sale_id}/returns", response_model=SaleReturnRead, status_code=status.HTTP_201_CREATED)
-def create_return(sale_id: uuid.UUID, payload: SaleReturnCreate, db: Session = Depends(get_db)):
+def create_return(sale_id: uuid.UUID, payload: SaleReturnCreate, db: Session = Depends(get_db), actor: User = Depends(manager_role)):
     ids = [item.sale_item_id for item in payload.items]
     if len(ids) != len(set(ids)):
         raise HTTPException(status_code=422, detail="A sale item may only appear once in a return request.")
@@ -63,7 +66,7 @@ def create_return(sale_id: uuid.UUID, payload: SaleReturnCreate, db: Session = D
             total += refund
             prepared.append((requested, original, product, refund))
 
-        returned = SaleReturn(return_number=_return_number(), sale_id=sale.id, refund_total=total.quantize(CENT), reason=payload.reason or None)
+        returned = SaleReturn(return_number=_return_number(), sale_id=sale.id, refund_total=total.quantize(CENT), reason=payload.reason or None, processed_by_user_id=actor.id)
         db.add(returned); db.flush()
         for requested, original, product, refund in prepared:
             db.add(SaleReturnItem(sale_return_id=returned.id, sale_item_id=original.id, product_id=original.product_id,
@@ -89,9 +92,10 @@ def create_return(sale_id: uuid.UUID, payload: SaleReturnCreate, db: Session = D
                 ).values(current_stock=after, cost_price=average_cost))
                 if result.rowcount != 1:
                     raise HTTPException(status_code=409, detail="Product stock changed while processing the return. Please retry.")
-                db.add(InventoryMovement(product_id=product.id, movement_type=MovementType.RETURN,
+                db.add(InventoryMovement(product_id=product.id, movement_type=MovementType.RETURN, actor_user_id=actor.id,
                     quantity_change=requested.quantity, stock_before=before, stock_after=after,
                     reference_type="SALE_RETURN", reference_id=returned.id, note=returned.return_number))
+        record_audit(db, actor, "RETURN_CREATED", "RETURN", returned.id)
         db.commit()
         return _loaded_return(db, returned.id)
     except HTTPException:

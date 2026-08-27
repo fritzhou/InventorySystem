@@ -9,10 +9,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
+from app.dependencies.auth import any_role
+from app.models.user import User
+from app.audit import record_audit
 from app.models import InventoryMovement, MovementType, Product, Sale, SaleItem, SaleReturnItem
 from app.schemas.sale import CheckoutCreate, SaleRead, SaleSummary, SalesPage
 
-router = APIRouter(prefix="/api/sales", tags=["sales"])
+router = APIRouter(prefix="/api/sales", tags=["sales"], dependencies=[Depends(any_role)])
 CENT = Decimal("0.01")
 
 
@@ -28,11 +31,14 @@ def list_sales(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
+    actor: User = Depends(any_role),
 ) -> SalesPage:
     if start_date and end_date and start_date > end_date:
         raise HTTPException(status_code=422, detail="From date cannot be after To date")
 
     filters = []
+    if actor.role == "CASHIER":
+        filters.append(Sale.processed_by_user_id == actor.id)
     if search.strip():
         filters.append(Sale.receipt_number.ilike(f"%{search.strip()}%"))
     if start_date:
@@ -64,10 +70,12 @@ def list_sales(
 
 
 @router.get("/{sale_id}", response_model=SaleRead)
-def get_sale(sale_id: uuid.UUID, db: Session = Depends(get_db)) -> Sale:
+def get_sale(sale_id: uuid.UUID, db: Session = Depends(get_db), actor: User = Depends(any_role)) -> Sale:
     sale = db.scalar(select(Sale).options(selectinload(Sale.items)).where(Sale.id == sale_id))
     if sale is None:
         raise HTTPException(status_code=404, detail="Receipt not found")
+    if actor.role == "CASHIER" and sale.processed_by_user_id != actor.id:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
     returned = dict(db.execute(select(SaleReturnItem.sale_item_id, func.sum(SaleReturnItem.quantity))
         .where(SaleReturnItem.sale_item_id.in_([item.id for item in sale.items]))
         .group_by(SaleReturnItem.sale_item_id)).all()) if sale.items else {}
@@ -78,7 +86,7 @@ def get_sale(sale_id: uuid.UUID, db: Session = Depends(get_db)) -> Sale:
 
 
 @router.post("", response_model=SaleRead, status_code=status.HTTP_201_CREATED)
-def checkout(payload: CheckoutCreate, db: Session = Depends(get_db)) -> Sale:
+def checkout(payload: CheckoutCreate, db: Session = Depends(get_db), actor: User = Depends(any_role)) -> Sale:
     quantities: dict[uuid.UUID, int] = defaultdict(int)
     for item in payload.items:
         quantities[item.product_id] += item.quantity
@@ -114,7 +122,7 @@ def checkout(payload: CheckoutCreate, db: Session = Depends(get_db)) -> Sale:
 
         sale = Sale(
             receipt_number=_receipt_number(), subtotal=total, total=total,
-            amount_tendered=tendered, change_due=(tendered - total).quantize(CENT), payment_method="cash",
+            amount_tendered=tendered, change_due=(tendered - total).quantize(CENT), payment_method="cash", processed_by_user_id=actor.id,
         )
         db.add(sale)
         db.flush()
@@ -143,7 +151,9 @@ def checkout(payload: CheckoutCreate, db: Session = Depends(get_db)) -> Sale:
                 product_id=product.id, movement_type=MovementType.SALE, quantity_change=-quantity,
                 stock_before=stock_before, stock_after=stock_after,
                 reference_type="SALE", reference_id=sale.id,
+                actor_user_id=actor.id,
             ))
+        record_audit(db, actor, "SALE_CREATED", "SALE", sale.id)
         db.commit()
         db.refresh(sale)
         return sale

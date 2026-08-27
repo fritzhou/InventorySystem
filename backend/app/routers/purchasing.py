@@ -7,10 +7,11 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 from app.database import get_db
+from app.dependencies.auth import manager_role
 from app.models import InventoryMovement, MovementType, Product, PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus, Supplier
 from app.schemas.purchasing import POCreate, POPage, PORead, POUpdate, ReceiveInput, SupplierInput, SupplierPage, SupplierRead, SupplierUpdate
 
-router=APIRouter(tags=["purchasing"]); MONEY=Decimal("0.01")
+router=APIRouter(tags=["purchasing"], dependencies=[Depends(manager_role)]); MONEY=Decimal("0.01")
 def fail(code,msg): raise HTTPException(status_code=code,detail=msg)
 def supplier_or_404(db,id,active=False):
     obj=db.get(Supplier,id)

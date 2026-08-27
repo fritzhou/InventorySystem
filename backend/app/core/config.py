@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     product_lookup_timeout_seconds: float = 4.0
     open_food_facts_base_url: str = "https://world.openfoodfacts.org"
     reporting_timezone: str = "Asia/Manila"
+    session_cookie_name: str = "stockflow_session"
+    session_cookie_secure: bool = False
+    session_expiration_hours: int = 12
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

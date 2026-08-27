@@ -1,0 +1,5 @@
+import { useState, type FormEvent } from 'react'
+import { useAuth } from '../auth'
+export function LoginPage(){const {login}=useAuth();const [email,setEmail]=useState('');const [password,setPassword]=useState('');const [error,setError]=useState('');const [busy,setBusy]=useState(false)
+  async function submit(event:FormEvent){event.preventDefault();setBusy(true);setError('');try{await login(email,password);window.location.assign('/')}catch{setError('Invalid email or password')}finally{setPassword('');setBusy(false)}}
+  return <main className="auth-page"><form className="auth-card" onSubmit={submit}><div className="brand"><span>SF</span>StockFlow</div><h1>Sign in</h1><label>Email<input type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)}/></label><label>Password<input type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)}/></label>{error&&<p role="alert">{error}</p>}<button disabled={busy}>{busy?'Signing in…':'Sign In'}</button></form></main>}

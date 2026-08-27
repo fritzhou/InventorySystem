@@ -26,6 +26,7 @@ class Sale(Base):
     change_due: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     payment_method: Mapped[str] = mapped_column(String(20), default="cash")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    processed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     items: Mapped[list["SaleItem"]] = relationship(back_populates="sale", cascade="all, delete-orphan")
 
@@ -64,6 +65,7 @@ class SaleReturn(Base):
     refund_total: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    processed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     sale: Mapped[Sale] = relationship()
     items: Mapped[list["SaleReturnItem"]] = relationship(back_populates="sale_return", cascade="all, delete-orphan")
