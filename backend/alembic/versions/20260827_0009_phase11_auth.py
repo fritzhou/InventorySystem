@@ -27,13 +27,15 @@ def upgrade() -> None:
     # NULL is retained only long enough for portable migration; bootstrap refuses duplicate users.
     op.execute("UPDATE users SET is_active = 0 WHERE password_hash IS NULL")
     op.create_index("ux_users_email_lower", "users", [sa.text("lower(email)")], unique=True)
-    op.create_table("user_sessions", sa.Column("id", sa.Uuid(), primary_key=True), sa.Column("user_id", sa.Uuid(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False), sa.Column("token_hash", sa.String(64), nullable=False), sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False), sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False), sa.Column("last_seen_at", sa.DateTime(timezone=True)), sa.Column("revoked_at", sa.DateTime(timezone=True)))
+    op.create_table("user_sessions", sa.Column("id", sa.Uuid(), primary_key=True), sa.Column("user_id", sa.Uuid(), nullable=False), sa.Column("token_hash", sa.String(64), nullable=False), sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False), sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False), sa.Column("last_seen_at", sa.DateTime(timezone=True)), sa.Column("revoked_at", sa.DateTime(timezone=True)), sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="fk_user_sessions_user_id_users", ondelete="CASCADE"))
     op.create_index("ix_user_sessions_token_hash", "user_sessions", ["token_hash"], unique=True)
     op.create_index("ix_user_sessions_user_id", "user_sessions", ["user_id"])
-    op.create_table("audit_events", sa.Column("id", sa.Uuid(), primary_key=True), sa.Column("actor_user_id", sa.Uuid(), sa.ForeignKey("users.id", ondelete="SET NULL")), sa.Column("actor_email", sa.String(320)), sa.Column("actor_display_name", sa.String(120)), sa.Column("action", sa.String(80), nullable=False), sa.Column("entity_type", sa.String(80), nullable=False), sa.Column("entity_id", sa.String(80)), sa.Column("metadata", sa.JSON()), sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False))
+    op.create_table("audit_events", sa.Column("id", sa.Uuid(), primary_key=True), sa.Column("actor_user_id", sa.Uuid()), sa.Column("actor_email", sa.String(320)), sa.Column("actor_display_name", sa.String(120)), sa.Column("action", sa.String(80), nullable=False), sa.Column("entity_type", sa.String(80), nullable=False), sa.Column("entity_id", sa.String(80)), sa.Column("metadata", sa.JSON()), sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False), sa.ForeignKeyConstraint(["actor_user_id"], ["users.id"], name="fk_audit_events_actor_user_id_users", ondelete="SET NULL"))
     for table, columns in {"sales":["processed_by_user_id"], "sale_returns":["processed_by_user_id"], "inventory_movements":["actor_user_id"], "expenses":["created_by_user_id","updated_by_user_id","voided_by_user_id"]}.items():
         with op.batch_alter_table(table) as batch:
-            for column in columns: batch.add_column(sa.Column(column, sa.Uuid(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True))
+            for column in columns:
+                batch.add_column(sa.Column(column, sa.Uuid(), nullable=True))
+                batch.create_foreign_key(f"fk_{table}_{column}_users", "users", [column], ["id"], ondelete="SET NULL")
 
 
 def downgrade() -> None:
