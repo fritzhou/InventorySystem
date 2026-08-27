@@ -1,18 +1,18 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from pydantic import field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     app_name: str = "StockFlow API"
     app_env: Literal["development", "test", "production"] = "development"
     database_url: str = "sqlite:///./stockflow.db"
-    cors_origins: list[str] = ["http://localhost:5173"]
-    allowed_hosts: list[str] = ["localhost", "127.0.0.1", "testserver"]
-    trusted_origins: list[str] = []
+    cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
+    allowed_hosts: Annotated[list[str], NoDecode] = ["localhost", "127.0.0.1", "testserver"]
+    trusted_origins: Annotated[list[str], NoDecode] = []
     api_docs_enabled: bool | None = None
     frontend_dist_dir: str | None = None
     db_pool_size: int = 5

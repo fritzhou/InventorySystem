@@ -6,7 +6,7 @@ COPY frontend/ ./
 RUN npm run build
 
 FROM python:3.13.2-slim-bookworm AS runtime
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8000
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8000 FORWARDED_ALLOW_IPS=127.0.0.1
 WORKDIR /app
 COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt \
@@ -15,4 +15,4 @@ COPY --chown=stockflow:stockflow backend/ ./
 COPY --from=frontend-build --chown=stockflow:stockflow /build/frontend/dist ./app/static
 USER stockflow
 EXPOSE 8000
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips=${FORWARDED_ALLOW_IPS:-127.0.0.1}"]

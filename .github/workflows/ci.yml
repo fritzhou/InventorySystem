@@ -21,6 +21,7 @@ jobs:
         working-directory: backend
     env:
       TEST_POSTGRES_URL: postgresql+psycopg://stockflow_ci:ci-only-password@localhost:5432/stockflow_ci
+      ALLOW_DESTRUCTIVE_POSTGRES_TESTS: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

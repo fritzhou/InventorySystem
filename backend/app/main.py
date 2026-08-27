@@ -1,10 +1,12 @@
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.core.config import Settings, get_settings
@@ -12,8 +14,9 @@ from app.database import engine
 from app.routers import audit_events, auth, categories, expenses, inventory, products, purchasing, reports, returns, sales, users
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, db_engine: Engine | None = None) -> FastAPI:
     settings = settings or get_settings()
+    readiness_engine = db_engine if db_engine is not None else engine
     docs = settings.api_docs_enabled
     application = FastAPI(title=settings.app_name, version="0.1.0", docs_url="/docs" if docs else None,
                           redoc_url="/redoc" if docs else None, openapi_url="/openapi.json" if docs else None)
@@ -25,10 +28,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @application.middleware("http")
     async def production_security(request: Request, call_next):
         started = time.monotonic()
-        if settings.app_env == "production" and request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        if (settings.app_env == "production" and request.url.path.startswith("/api/")
+                and request.method in {"POST", "PUT", "PATCH", "DELETE"}):
             origin = request.headers.get("origin")
             allowed = set(settings.trusted_origins or settings.cors_origins)
-            if origin and origin not in allowed:
+            if not origin:
+                referer = request.headers.get("referer")
+                if referer:
+                    parsed = urlsplit(referer)
+                    origin = f"{parsed.scheme}://{parsed.netloc}"
+            if not origin or origin not in allowed:
                 return JSONResponse({"detail": "Untrusted request origin"}, status_code=403)
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -50,7 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @application.get("/ready", tags=["system"])
     def ready():
         try:
-            with engine.connect() as connection:
+            with readiness_engine.connect() as connection:
                 connection.execute(text("SELECT 1"))
         except Exception:
             return JSONResponse({"status": "unavailable"}, status_code=503)

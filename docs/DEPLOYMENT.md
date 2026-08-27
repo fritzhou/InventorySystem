@@ -41,7 +41,7 @@ docker build -t stockflow:phase12 .
 docker run --rm -p 8000:8000 --env-file /secure/path/stockflow.env stockflow:phase12
 ```
 
-The image runs as a non-root user, serves the compiled SPA, honors `PORT`, and expects TLS termination by the hosting platform. Do not expose the service directly over plaintext production HTTP.
+The image runs as a non-root user, serves the compiled SPA, honors `PORT`, and expects TLS termination by the hosting platform. By default Uvicorn trusts forwarded headers only from `127.0.0.1`. Set `FORWARDED_ALLOW_IPS` to the documented proxy addresses for your platform. Trusting every address with `FORWARDED_ALLOW_IPS=*` must be an explicit, reviewed deployment decision and is unsafe when clients can reach the container directly. Trusted Host validation remains enabled. Do not expose the service directly over plaintext production HTTP.
 
 Verify `GET /health` returns liveness and `GET /ready` returns database readiness. Then log in and smoke-test dashboard, POS checkout, products, sales/returns, purchasing/receiving, expenses, users, audit log, refresh, logout, and direct navigation to React routes. API misses such as `/api/nonexistent` must remain JSON 404 responses.
 
@@ -74,13 +74,23 @@ Restrict and encrypt backup files. Regularly restore into an isolated database, 
 
 ## 5. Manual Supabase verification in Codespaces
 
-Set `DATABASE_URL` as a Codespaces secret, open a fresh terminal, and run from `backend`:
+For the **production database**, set `DATABASE_URL` privately and run only the non-destructive migration and application checks:
 
 ```bash
-APP_ENV=development alembic upgrade head
-TEST_POSTGRES_URL="$DATABASE_URL" python -m pytest -q tests/test_postgres_migrations.py
+alembic upgrade head
+curl --fail https://stockflow.example.com/ready
 ```
 
-The test is destructive and **must only use a dedicated empty test database**, never a production Supabase database. Run the full test suites afterward. Unset secrets when finished and confirm no `.env` was staged.
+Then perform the application smoke tests described above. **Never run the PostgreSQL migration pytest against the production `DATABASE_URL`.**
+
+Destructive migration tests require a completely separate, disposable PostgreSQL database or Supabase project. `TEST_POSTGRES_URL` must never equal the production `DATABASE_URL`. The test drops the entire `public` schema, and therefore requires an explicit second safety gate:
+
+```bash
+export TEST_POSTGRES_URL='postgresql+psycopg://TEST_USER:TEST_PASSWORD@TEST_HOST:5432/test_database?sslmode=require'
+export ALLOW_DESTRUCTIVE_POSTGRES_TESTS=true
+python -m pytest -q tests/test_postgres_migrations.py
+```
+
+If either test variable is absent, destructive tests are skipped. Delete the disposable database after verification. Unset secrets when finished and confirm no `.env` was staged.
 
 Local development remains unchanged: SQLite defaults for FastAPI on port 8000 and Vite on port 5173 with its development proxy.
