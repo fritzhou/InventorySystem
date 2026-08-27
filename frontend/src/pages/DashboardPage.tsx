@@ -4,7 +4,7 @@ import { api } from '../services/api'
 import type { InventoryStatus, ReportSummary, TopProduct, TrendPoint } from '../types/report'
 import { formatMoney } from '../utils/money'
 
-const zero: ReportSummary = { sales_total: '0.00', transaction_count: 0, items_sold: 0, gross_profit: '0.00', profit_complete: true, average_transaction_value: '0.00', total_active_products: 0, total_units_in_stock: 0, low_stock_count: 0, out_of_stock_count: 0 }
+const zero: ReportSummary = { sales_total: '0.00', transaction_count: 0, items_sold: 0, gross_profit: '0.00', profit_complete: true, operating_expenses:'0.00', net_profit:'0.00', net_profit_complete:true, average_transaction_value: '0.00', total_active_products: 0, total_units_in_stock: 0, low_stock_count: 0, out_of_stock_count: 0 }
 
 function TrendChart({ data }: { data: TrendPoint[] }) {
   const maxMagnitude = Math.max(...data.map((point) => Math.abs(Number(point.sales))), 0)
@@ -17,6 +17,8 @@ function Metrics({ summary }: { summary: ReportSummary }) {
     <article className="metric-card"><span>Transactions</span><strong>{summary.transaction_count}</strong></article>
     <article className="metric-card"><span>Items Sold</span><strong>{summary.items_sold}</strong></article>
     <article className="metric-card"><span>Gross Profit</span><strong>{formatMoney(summary.gross_profit)}</strong>{!summary.profit_complete && <small>Partial — some sales lack cost snapshots</small>}</article>
+    <article className="metric-card"><span>Operating Expenses</span><strong>{formatMoney(summary.operating_expenses ?? '0.00')}</strong></article>
+    <article className="metric-card"><span>Net Profit</span>{summary.net_profit_complete !== false && summary.net_profit != null ? <strong>{formatMoney(summary.net_profit)}</strong> : <small>Incomplete historical cost data</small>}</article>
     <article className="metric-card"><span>Low Stock</span><strong>{summary.low_stock_count}</strong></article>
     <article className="metric-card"><span>Out of Stock</span><strong>{summary.out_of_stock_count}</strong></article>
   </div>

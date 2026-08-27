@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.database import get_db
-from app.models import Product, Sale, SaleItem, SaleReturn, SaleReturnItem
-from app.schemas.report import InventoryStatus, ReportSummary, SalesTrendPoint, StockProduct, TopProduct
+from app.models import Expense, ExpenseStatus, Product, Sale, SaleItem, SaleReturn, SaleReturnItem
+from app.schemas.report import ExpenseBreakdownItem, ExpenseSummary, InventoryStatus, ReportSummary, SalesTrendPoint, StockProduct, TopProduct
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 CENT = Decimal("0.01")
@@ -46,7 +46,13 @@ def _inventory(db: Session):
     ).where(active)).one()
 
 
-def _summary(db: Session, start: datetime, end: datetime) -> ReportSummary:
+def _expense_rows(db: Session, first: date, last: date):
+    return db.execute(select(Expense.category_name, func.sum(Expense.amount)).where(
+        Expense.status == ExpenseStatus.ACTIVE, Expense.expense_date >= first, Expense.expense_date <= last
+    ).group_by(Expense.category_name).order_by(func.sum(Expense.amount).desc(), Expense.category_name)).all()
+
+
+def _summary(db: Session, first: date, last: date, start: datetime, end: datetime) -> ReportSummary:
     sales_total, transaction_count = db.execute(select(
         func.coalesce(func.sum(Sale.total), 0), func.count(Sale.id)
     ).where(Sale.created_at >= start, Sale.created_at < end)).one()
@@ -63,9 +69,13 @@ def _summary(db: Session, start: datetime, end: datetime) -> ReportSummary:
     ).join(SaleReturn).where(SaleReturn.created_at >= start, SaleReturn.created_at < end)).one()
     active, units, low, out = _inventory(db)
     total = (Decimal(sales_total) - Decimal(refunds)).quantize(CENT)
+    operating_expenses = sum((Decimal(row[1]) for row in _expense_rows(db, first, last)), Decimal("0.00")).quantize(CENT)
+    gross_profit = (Decimal(profit) - Decimal(reversed_profit)).quantize(CENT)
+    complete = missing_cost == 0 and missing_return_cost == 0
     return ReportSummary(
         sales_total=total, transaction_count=transaction_count, items_sold=items_sold - returned_items,
-        gross_profit=(Decimal(profit) - Decimal(reversed_profit)).quantize(CENT), profit_complete=missing_cost == 0 and missing_return_cost == 0,
+        gross_profit=gross_profit, profit_complete=complete, operating_expenses=operating_expenses,
+        net_profit=(gross_profit - operating_expenses).quantize(CENT) if complete else None, net_profit_complete=complete,
         average_transaction_value=(total / transaction_count).quantize(CENT) if transaction_count else Decimal("0.00"),
         total_active_products=active, total_units_in_stock=units, low_stock_count=low or 0, out_of_stock_count=out or 0,
     )
@@ -73,14 +83,30 @@ def _summary(db: Session, start: datetime, end: datetime) -> ReportSummary:
 
 @router.get("/dashboard", response_model=ReportSummary)
 def dashboard(start_date: date | None = None, end_date: date | None = None, db: Session = Depends(get_db)):
-    _, _, start, end = _range(start_date, end_date, default_today=True)
-    return _summary(db, start, end)
+    first, last, start, end = _range(start_date, end_date, default_today=True)
+    return _summary(db, first, last, start, end)
 
 
 @router.get("/summary", response_model=ReportSummary)
 def summary(start_date: date | None = None, end_date: date | None = None, db: Session = Depends(get_db)):
-    _, _, start, end = _range(start_date, end_date)
-    return _summary(db, start, end)
+    first, last, start, end = _range(start_date, end_date)
+    return _summary(db, first, last, start, end)
+
+
+@router.get("/expenses", response_model=ExpenseSummary)
+def expense_summary(start_date: date | None = None, end_date: date | None = None, db: Session = Depends(get_db)):
+    first, last, _, _ = _range(start_date, end_date)
+    rows = _expense_rows(db, first, last)
+    count = db.scalar(select(func.count(Expense.id)).where(Expense.status == ExpenseStatus.ACTIVE,
+        Expense.expense_date >= first, Expense.expense_date <= last)) or 0
+    categories = [ExpenseBreakdownItem(category=name, amount=amount) for name, amount in rows]
+    return ExpenseSummary(total_expenses=sum((Decimal(x.amount) for x in categories), Decimal("0.00")), expense_count=count, categories=categories)
+
+
+@router.get("/expense-breakdown", response_model=list[ExpenseBreakdownItem])
+def expense_breakdown(start_date: date | None = None, end_date: date | None = None, db: Session = Depends(get_db)):
+    first, last, _, _ = _range(start_date, end_date)
+    return [ExpenseBreakdownItem(category=name, amount=amount) for name, amount in _expense_rows(db, first, last)]
 
 
 @router.get("/sales-trend", response_model=list[SalesTrendPoint])
@@ -89,11 +115,18 @@ def sales_trend(start_date: date | None = None, end_date: date | None = None, db
     rows = db.execute(select(Sale.created_at, Sale.total, func.coalesce(func.sum(SaleItem.quantity), 0))
         .outerjoin(SaleItem).where(Sale.created_at >= start, Sale.created_at < end)
         .group_by(Sale.id).order_by(Sale.created_at)).all()
-    values = {first + timedelta(days=i): [Decimal("0.00"), 0, 0] for i in range((last - first).days + 1)}
+    # sales, transactions, items, gross profit, missing-cost rows, expenses
+    values = {first + timedelta(days=i): [Decimal("0.00"), 0, 0, Decimal("0.00"), 0, Decimal("0.00")] for i in range((last - first).days + 1)}
     for created_at, total, quantity in rows:
         aware = created_at.replace(tzinfo=timezone.utc) if created_at.tzinfo is None else created_at
         key = aware.astimezone(_timezone()).date()
         values[key][0] += Decimal(total); values[key][1] += 1; values[key][2] += quantity
+    profit_rows = db.execute(select(Sale.created_at, SaleItem.unit_price, SaleItem.cost_price, SaleItem.quantity).join(Sale)
+        .where(Sale.created_at >= start, Sale.created_at < end)).all()
+    for created_at, price, cost, quantity in profit_rows:
+        aware = created_at.replace(tzinfo=timezone.utc) if created_at.tzinfo is None else created_at; key = aware.astimezone(_timezone()).date()
+        if cost is None: values[key][4] += 1
+        else: values[key][3] += (Decimal(price) - Decimal(cost)) * quantity
     returns = db.execute(select(SaleReturn.created_at, SaleReturn.refund_total, func.coalesce(func.sum(SaleReturnItem.quantity), 0))
         .outerjoin(SaleReturnItem).where(SaleReturn.created_at >= start, SaleReturn.created_at < end)
         .group_by(SaleReturn.id).order_by(SaleReturn.created_at)).all()
@@ -101,7 +134,17 @@ def sales_trend(start_date: date | None = None, end_date: date | None = None, db
         aware = created_at.replace(tzinfo=timezone.utc) if created_at.tzinfo is None else created_at
         key = aware.astimezone(_timezone()).date()
         values[key][0] -= Decimal(refund); values[key][2] -= quantity
-    return [SalesTrendPoint(date=day, sales=value[0], transactions=value[1], items_sold=value[2]) for day, value in values.items()]
+    return_profit_rows = db.execute(select(SaleReturn.created_at, SaleReturnItem.unit_price, SaleReturnItem.cost_price, SaleReturnItem.quantity).join(SaleReturn)
+        .where(SaleReturn.created_at >= start, SaleReturn.created_at < end)).all()
+    for created_at, price, cost, quantity in return_profit_rows:
+        aware = created_at.replace(tzinfo=timezone.utc) if created_at.tzinfo is None else created_at; key = aware.astimezone(_timezone()).date()
+        if cost is None: values[key][4] += 1
+        else: values[key][3] -= (Decimal(price) - Decimal(cost)) * quantity
+    for expense_date, amount in db.execute(select(Expense.expense_date, func.sum(Expense.amount)).where(
+        Expense.status == ExpenseStatus.ACTIVE, Expense.expense_date >= first, Expense.expense_date <= last).group_by(Expense.expense_date)):
+        values[expense_date][5] = Decimal(amount)
+    return [SalesTrendPoint(date=day, sales=v[0], transactions=v[1], items_sold=v[2], gross_profit=v[3], expenses=v[5],
+        net_profit=(v[3]-v[5]) if v[4] == 0 else None, profit_complete=v[4] == 0) for day, v in values.items()]
 
 
 @router.get("/top-products", response_model=list[TopProduct])

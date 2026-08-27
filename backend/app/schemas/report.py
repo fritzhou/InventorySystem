@@ -11,6 +11,9 @@ class ReportSummary(BaseModel):
     items_sold: int
     gross_profit: Decimal
     profit_complete: bool
+    operating_expenses: Decimal
+    net_profit: Decimal | None
+    net_profit_complete: bool
     average_transaction_value: Decimal
     total_active_products: int
     total_units_in_stock: int
@@ -23,6 +26,21 @@ class SalesTrendPoint(BaseModel):
     sales: Decimal
     transactions: int
     items_sold: int
+    gross_profit: Decimal
+    expenses: Decimal
+    net_profit: Decimal | None
+    profit_complete: bool
+
+
+class ExpenseBreakdownItem(BaseModel):
+    category: str
+    amount: Decimal
+
+
+class ExpenseSummary(BaseModel):
+    total_expenses: Decimal
+    expense_count: int
+    categories: list[ExpenseBreakdownItem]
 
 
 class TopProduct(BaseModel):
