@@ -39,3 +39,22 @@ class SaleRead(BaseModel):
     payment_method: str
     created_at: datetime
     items: list[SaleItemRead]
+
+
+class SaleSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    receipt_number: str
+    created_at: datetime
+    payment_method: str
+    total: Decimal
+    item_count: int
+
+
+class SalesPage(BaseModel):
+    items: list[SaleSummary]
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int

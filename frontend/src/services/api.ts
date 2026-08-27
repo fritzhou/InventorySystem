@@ -1,6 +1,6 @@
 import type { Category, CategoryInput } from '../types/category'
 import type { Product, ProductInput, ProductLookup, ProductUpdateInput } from '../types/product'
-import type { CheckoutInput, Sale } from '../types/sale'
+import type { CheckoutInput, Sale, SalesPage } from '../types/sale'
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -30,6 +30,14 @@ export interface ProductFilters {
   activeOnly?: boolean
 }
 
+export interface SaleFilters {
+  search?: string
+  startDate?: string
+  endDate?: string
+  page?: number
+  pageSize?: number
+}
+
 export const api = {
   getHealth: () => request<{ status: string; service: string }>('/health'),
   getProducts: ({ search = '', categoryId = '', activeOnly = true }: ProductFilters = {}) => {
@@ -46,4 +54,12 @@ export const api = {
   getCategories: () => request<Category[]>('/api/categories'),
   createCategory: (category: CategoryInput) => request<Category>('/api/categories', { method: 'POST', body: JSON.stringify(category) }),
   checkout: (sale: CheckoutInput) => request<Sale>('/api/sales', { method: 'POST', body: JSON.stringify(sale) }),
+  getSales: ({ search = '', startDate = '', endDate = '', page = 1, pageSize = 20 }: SaleFilters = {}) => {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+    if (search.trim()) params.set('search', search.trim())
+    if (startDate) params.set('start_date', startDate)
+    if (endDate) params.set('end_date', endDate)
+    return request<SalesPage>(`/api/sales?${params}`)
+  },
+  getSale: (id: string) => request<Sale>(`/api/sales/${encodeURIComponent(id)}`),
 }

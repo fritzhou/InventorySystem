@@ -1,15 +1,16 @@
 import uuid
 from collections import defaultdict
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, update
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
 from app.models import Product, Sale, SaleItem
-from app.schemas.sale import CheckoutCreate, SaleRead
+from app.schemas.sale import CheckoutCreate, SaleRead, SaleSummary, SalesPage
 
 router = APIRouter(prefix="/api/sales", tags=["sales"])
 CENT = Decimal("0.01")
@@ -17,6 +18,57 @@ CENT = Decimal("0.01")
 
 def _receipt_number() -> str:
     return f"SF-{uuid.uuid4().hex[:12].upper()}"
+
+
+@router.get("", response_model=SalesPage)
+def list_sales(
+    search: str = "",
+    start_date: date | None = None,
+    end_date: date | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> SalesPage:
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(status_code=422, detail="From date cannot be after To date")
+
+    filters = []
+    if search.strip():
+        filters.append(Sale.receipt_number.ilike(f"%{search.strip()}%"))
+    if start_date:
+        filters.append(Sale.created_at >= datetime.combine(start_date, time.min, tzinfo=timezone.utc))
+    if end_date:
+        filters.append(Sale.created_at < datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=timezone.utc))
+
+    total_items = db.scalar(select(func.count()).select_from(Sale).where(*filters)) or 0
+    item_count = func.coalesce(func.sum(SaleItem.quantity), 0).label("item_count")
+    rows = db.execute(
+        select(Sale, item_count)
+        .outerjoin(SaleItem)
+        .where(*filters)
+        .group_by(Sale.id)
+        .order_by(Sale.created_at.desc(), Sale.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    return SalesPage(
+        items=[SaleSummary(
+            id=sale.id, receipt_number=sale.receipt_number, created_at=sale.created_at,
+            payment_method=sale.payment_method, total=sale.total, item_count=count,
+        ) for sale, count in rows],
+        page=page,
+        page_size=page_size,
+        total_items=total_items,
+        total_pages=(total_items + page_size - 1) // page_size,
+    )
+
+
+@router.get("/{sale_id}", response_model=SaleRead)
+def get_sale(sale_id: uuid.UUID, db: Session = Depends(get_db)) -> Sale:
+    sale = db.scalar(select(Sale).options(selectinload(Sale.items)).where(Sale.id == sale_id))
+    if sale is None:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    return sale
 
 
 @router.post("", response_model=SaleRead, status_code=status.HTTP_201_CREATED)
