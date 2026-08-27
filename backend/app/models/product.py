@@ -32,3 +32,4 @@ class Product(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     category: Mapped["Category"] = relationship(back_populates="products")  # noqa: F821
+    sale_items: Mapped[list["SaleItem"]] = relationship(back_populates="product")  # noqa: F821

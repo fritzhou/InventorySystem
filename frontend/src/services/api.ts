@@ -1,5 +1,6 @@
 import type { Category, CategoryInput } from '../types/category'
 import type { Product, ProductInput, ProductLookup, ProductUpdateInput } from '../types/product'
+import type { CheckoutInput, Sale } from '../types/sale'
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -44,4 +45,5 @@ export const api = {
   deactivateProduct: (id: string) => request<Product>(`/api/products/${id}`, { method: 'DELETE' }),
   getCategories: () => request<Category[]>('/api/categories'),
   createCategory: (category: CategoryInput) => request<Category>('/api/categories', { method: 'POST', body: JSON.stringify(category) }),
+  checkout: (sale: CheckoutInput) => request<Sale>('/api/sales', { method: 'POST', body: JSON.stringify(sale) }),
 }
