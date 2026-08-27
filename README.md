@@ -132,3 +132,7 @@ The command uses hidden `getpass` prompts, never seeds known credentials, and re
 Session secrets are delivered only through the `stockflow_session` HttpOnly, SameSite=Lax, Path=/ cookie. Only a SHA-256 digest is stored. Sessions expire after 12 hours by default; configure `SESSION_EXPIRATION_HOURS`, `SESSION_COOKIE_NAME`, and `SESSION_COOKIE_SECURE` (enable secure cookies for HTTPS).
 
 Roles are deliberately fixed: Cashiers have POS and their sales access without product costs; Managers additionally have operational product, inventory, return, supplier, and purchasing access; Administrators additionally have dashboard, financial reports, expenses, user administration, and immutable audit-log access. Password changes revoke all other sessions while keeping the current session active.
+
+## Production deployment
+
+Phase 12 production, Supabase PostgreSQL, migration, transfer, security, Docker, verification, and recovery instructions are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
