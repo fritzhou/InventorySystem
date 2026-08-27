@@ -11,7 +11,13 @@ export interface SaleItem {
   unit_price: string
   quantity: number
   line_total: string
+  returned_quantity: number
+  returnable_quantity: number
 }
+
+export interface SaleReturnItem { id: string; sale_item_id: string; product_id: string; product_name: string; sku: string; unit_price: string; cost_price: string | null; quantity: number; refund_amount: string; return_to_stock: boolean }
+export interface SaleReturn { id: string; return_number: string; sale_id: string; refund_total: string; reason: string | null; created_at: string; items: SaleReturnItem[]; sale: { id: string; receipt_number: string } }
+export interface ReturnsPage { items: SaleReturn[]; page: number; page_size: number; total_items: number; total_pages: number }
 
 export interface Sale {
   id: string
