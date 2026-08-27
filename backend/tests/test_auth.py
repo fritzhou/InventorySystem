@@ -3,6 +3,7 @@ from datetime import timedelta
 from sqlalchemy import select
 
 from app.models.user import User, UserSession
+from app.models.user import AuditEvent
 from app.security import hash_password, utcnow, verify_password
 from app.scripts.create_admin import _create_first_admin
 
@@ -31,6 +32,8 @@ def test_user_management_must_change_and_final_admin(client, db):
     assert created.status_code == 201 and created.json()["must_change_password"] is True
     duplicate = client.post("/api/users", json={"email":"cashier@example.com","display_name":"Other","role":"CASHIER","temporary_password":"temporary-123"})
     assert duplicate.status_code == 409
+    assert duplicate.json() == {"detail":"A user with this email already exists"}
+    assert len(list(db.scalars(select(AuditEvent).where(AuditEvent.action == "USER_CREATED")))) == 1
     admin_id = db.scalar(select(User).where(User.role == "ADMIN")).id
     assert client.patch(f"/api/users/{admin_id}", json={"is_active":False}).status_code == 409
     assert client.patch(f"/api/users/{admin_id}", json={"role":"MANAGER"}).status_code == 409
@@ -104,3 +107,18 @@ def test_inactive_user_and_must_change_restriction(unauthenticated_client, db):
     assert unauthenticated_client.get("/api/products").status_code == 403
     assert unauthenticated_client.get("/api/auth/me").status_code == 200
     assert unauthenticated_client.post("/api/auth/change-password", json={"current_password":"temporary-password","new_password":"permanent-password"}).status_code == 200
+
+
+def test_deactivation_permanently_revokes_old_session(client, db):
+    created = client.post("/api/users", json={"email":"revoked@example.com","display_name":"Revoked User","role":"CASHIER","temporary_password":"temporary-123"}).json()
+    assert client.post("/api/auth/login", json={"email":"revoked@example.com","password":"temporary-123"}).status_code == 200
+    old_cookie = client.cookies.get("stockflow_session")
+    assert client.post("/api/auth/login", json={"email":"test-admin@example.com","password":"test-password-123"}).status_code == 200
+    assert client.patch(f"/api/users/{created['id']}", json={"is_active":False}).status_code == 200
+    client.cookies.set("stockflow_session", old_cookie)
+    assert client.get("/api/auth/me").status_code == 401
+    assert client.post("/api/auth/login", json={"email":"test-admin@example.com","password":"test-password-123"}).status_code == 200
+    assert client.patch(f"/api/users/{created['id']}", json={"is_active":True}).status_code == 200
+    client.cookies.set("stockflow_session", old_cookie)
+    assert client.get("/api/auth/me").status_code == 401
+    assert client.post("/api/auth/login", json={"email":"revoked@example.com","password":"temporary-123"}).status_code == 200

@@ -12,7 +12,7 @@ export function AuthProvider({children}:{children:ReactNode}) {
   const refresh=async()=>{ try { setUser(await api.me()) } catch(error) { if(error instanceof ApiError && error.status===401)setUser(null); else throw error } finally { setLoading(false) } }
   useEffect(()=>{ void refresh() },[])
   useEffect(()=>{const expired=()=>setUser(null);window.addEventListener('stockflow:session-expired',expired);return()=>window.removeEventListener('stockflow:session-expired',expired)},[])
-  const login=async(email:string,password:string)=>{setUser(await api.login(email,password))}
+  const login=async(email:string,password:string)=>{const authenticated=await api.login(email,password);setUser(authenticated);const landing=authenticated.must_change_password?'/account':authenticated.role==='ADMIN'?'/dashboard':'/pos';window.history.replaceState({},'',landing)}
   const logout=async()=>{try{await api.logout()}finally{setUser(null)}}
   return <AuthContext.Provider value={{user,loading,login,logout,refresh}}>{children}</AuthContext.Provider>
 }

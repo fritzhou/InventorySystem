@@ -37,7 +37,16 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db), actor: User 
     if payload.role not in ROLES: raise HTTPException(422, "Invalid role")
     user = User(email=normalize_email(payload.email), display_name=payload.display_name.strip(), role=payload.role,
                 password_hash=hash_password(payload.temporary_password), is_active=True, must_change_password=True)
-    db.add(user); db.flush(); record_audit(db, actor, "USER_CREATED", "USER", user.id); _commit(db); db.refresh(user); return user
+    try:
+        db.add(user)
+        db.flush()
+        record_audit(db, actor, "USER_CREATED", "USER", user.id)
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, "A user with this email already exists") from exc
+    db.refresh(user)
+    return user
 
 
 @router.get("/{user_id}", response_model=UserRead)
@@ -54,7 +63,10 @@ def patch_user(user_id: uuid.UUID, payload: UserUpdate, db: Session = Depends(ge
     if removing_admin and db.scalar(select(func.count()).select_from(User).where(User.role == "ADMIN", User.is_active.is_(True))) <= 1:
         raise HTTPException(409, "The final active administrator cannot be removed or demoted")
     if "email" in changes: changes["email"] = normalize_email(changes["email"])
+    revoke_sessions = changes.get("is_active") is False or ("role" in changes and changes["role"] != user.role)
     for key, value in changes.items(): setattr(user, key, value)
+    if revoke_sessions:
+        db.execute(update(UserSession).where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None)).values(revoked_at=utcnow()))
     action = "USER_DEACTIVATED" if changes.get("is_active") is False else "USER_UPDATED"
     record_audit(db, actor, action, "USER", user.id); _commit(db); db.refresh(user); return user
 

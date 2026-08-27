@@ -24,6 +24,13 @@ test('failed login shows generic error and does not emit session expiration',asy
   window.removeEventListener('stockflow:session-expired',expired)
 })
 
+test.each([['ADMIN',false,'/dashboard'],['MANAGER',false,'/pos'],['CASHIER',false,'/pos'],['CASHIER',true,'/account']] as const)('successful %s login uses an allowed landing page',async(role,mustChange,landing)=>{
+  vi.spyOn(globalThis,'fetch').mockResolvedValueOnce(json({detail:'Authentication required'},401)).mockResolvedValueOnce(json(user(role,mustChange)))
+  render(<AuthProvider><App/></AuthProvider>);await screen.findByRole('button',{name:'Sign In'})
+  fireEvent.change(screen.getByLabelText('Email'),{target:{value:`${role.toLowerCase()}@example.com`}});fireEvent.change(screen.getByLabelText('Password'),{target:{value:'valid-password'}});fireEvent.click(screen.getByRole('button',{name:'Sign In'}))
+  await waitFor(()=>expect(window.location.pathname).toBe(landing))
+})
+
 function Probe(){const {user,logout}=useAuth();return <><span>{user?.role??'signed-out'}</span><button onClick={()=>void logout()}>Log out</button></>}
 test('protected 401 clears auth while 403 does not',async()=>{
   vi.spyOn(globalThis,'fetch').mockResolvedValueOnce(json(user('ADMIN'))).mockResolvedValueOnce(json({detail:'Forbidden'},403)).mockResolvedValueOnce(json({detail:'Expired'},401))

@@ -13,12 +13,14 @@ from app.security import hash_password, new_session_secret, normalize_email, tok
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 settings = get_settings()
+DUMMY_PASSWORD_HASH = hash_password("stockflow-dummy-password-verification")
 
 
 @router.post("/login", response_model=UserRead)
 def login(payload: LoginInput, response: Response, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.email == normalize_email(payload.email)))
-    if not user or not user.is_active or not user.password_hash or not verify_password(payload.password, user.password_hash):
+    password_valid = verify_password(payload.password, user.password_hash if user and user.password_hash else DUMMY_PASSWORD_HASH)
+    if not user or not user.is_active or not user.password_hash or not password_valid:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
     secret = new_session_secret()
     now = utcnow()
