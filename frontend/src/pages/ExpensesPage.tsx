@@ -2,9 +2,9 @@ import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { api } from '../services/api'
 import type { Expense, ExpenseCategory, ExpenseInput, ExpenseStatus } from '../types/expense'
 import { formatMoney } from '../utils/money'
+import { formatLocalDate } from '../utils/reportDates'
 
-const today = () => new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())
-const blank = ():ExpenseInput => ({category_id:'',description:'',amount:'',expense_date:today(),notes:''})
+const blank = ():ExpenseInput => ({category_id:'',description:'',amount:'',expense_date:formatLocalDate(new Date()),notes:''})
 
 function ExpenseForm({categories,expense,onClose,onSaved}:{categories:ExpenseCategory[];expense:Expense|null;onClose:()=>void;onSaved:()=>void}) {
   const [value,setValue]=useState<ExpenseInput>(expense?{category_id:expense.category_id,description:expense.description,amount:expense.amount,expense_date:expense.expense_date,notes:expense.notes}:blank())
