@@ -10,14 +10,19 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    dialect = op.get_bind().dialect.name
     with op.batch_alter_table("users") as batch:
         batch.alter_column("full_name", new_column_name="display_name", existing_type=sa.String(120))
-        batch.alter_column("role", existing_type=sa.Enum("ADMIN", "CASHIER", name="user_role"), type_=sa.String(20), existing_nullable=False)
         batch.add_column(sa.Column("password_hash", sa.String(512), nullable=True))
         batch.add_column(sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()))
         batch.add_column(sa.Column("must_change_password", sa.Boolean(), nullable=False, server_default=sa.true()))
         batch.add_column(sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False))
         batch.add_column(sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True))
+    if dialect == "postgresql":
+        op.execute("ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(20) USING role::text")
+    else:
+        with op.batch_alter_table("users") as batch:
+            batch.alter_column("role", existing_type=sa.Enum("ADMIN", "CASHIER", name="user_role"), type_=sa.String(20), existing_nullable=False)
     # Existing installations should contain no usable accounts because authentication did not exist.
     # NULL is retained only long enough for portable migration; bootstrap refuses duplicate users.
     op.execute("UPDATE users SET is_active = 0 WHERE password_hash IS NULL")
@@ -32,6 +37,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    dialect = op.get_bind().dialect.name
+    # The old enum cannot represent MANAGER. A downgraded installation maps
+    # those accounts to CASHIER before the Phase 11 activation field is removed.
+    op.execute("UPDATE users SET role = 'CASHIER', is_active = 0 WHERE role = 'MANAGER'")
     for table, columns in {"expenses":["voided_by_user_id","updated_by_user_id","created_by_user_id"], "inventory_movements":["actor_user_id"], "sale_returns":["processed_by_user_id"], "sales":["processed_by_user_id"]}.items():
         with op.batch_alter_table(table) as batch:
             for column in columns: batch.drop_column(column)
@@ -39,3 +48,8 @@ def downgrade() -> None:
     with op.batch_alter_table("users") as batch:
         for column in ["last_login_at", "updated_at", "must_change_password", "is_active", "password_hash"]: batch.drop_column(column)
         batch.alter_column("display_name", new_column_name="full_name", existing_type=sa.String(120))
+    if dialect == "postgresql":
+        op.execute("ALTER TABLE users ALTER COLUMN role TYPE user_role USING role::text::user_role")
+    else:
+        with op.batch_alter_table("users") as batch:
+            batch.alter_column("role", existing_type=sa.String(20), type_=sa.Enum("ADMIN", "CASHIER", name="user_role"), existing_nullable=False)

@@ -18,7 +18,7 @@ settings = get_settings()
 @router.post("/login", response_model=UserRead)
 def login(payload: LoginInput, response: Response, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.email == normalize_email(payload.email)))
-    if not user or not user.is_active or not verify_password(payload.password, user.password_hash):
+    if not user or not user.is_active or not user.password_hash or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
     secret = new_session_secret()
     now = utcnow()

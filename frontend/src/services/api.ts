@@ -24,6 +24,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     const body = await response.json().catch(() => null) as { detail?: string | Array<{ msg: string }> } | null
     const detail = Array.isArray(body?.detail) ? body.detail.map((issue) => issue.msg).join(', ') : body?.detail
+    if (response.status === 401 && path !== '/api/auth/login' && path !== '/api/auth/me') {
+      window.dispatchEvent(new CustomEvent('stockflow:session-expired'))
+    }
     throw new ApiError(detail ?? `StockFlow API request failed (${response.status})`, response.status)
   }
   if (response.status === 204) return undefined as T

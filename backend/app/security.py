@@ -5,6 +5,7 @@ import secrets
 from datetime import datetime, timezone
 
 MIN_PASSWORD_LENGTH = 10
+MAX_PASSWORD_LENGTH = 1024
 
 
 def normalize_email(email: str) -> str:
@@ -14,6 +15,8 @@ def normalize_email(email: str) -> str:
 def hash_password(password: str) -> str:
     if len(password) < MIN_PASSWORD_LENGTH:
         raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
+    if len(password) > MAX_PASSWORD_LENGTH:
+        raise ValueError(f"Password must be at most {MAX_PASSWORD_LENGTH} characters")
     salt = secrets.token_bytes(16)
     derived = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1, dklen=64)
     return "scrypt$16384$8$1$" + base64.b64encode(salt).decode() + "$" + base64.b64encode(derived).decode()

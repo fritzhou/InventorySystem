@@ -4,6 +4,7 @@ from sqlalchemy import select
 
 from app.models.user import User, UserSession
 from app.security import hash_password, utcnow, verify_password
+from app.scripts.create_admin import _create_first_admin
 
 
 def test_password_hash_and_generic_login_error(client, db):
@@ -32,9 +33,74 @@ def test_user_management_must_change_and_final_admin(client, db):
     assert duplicate.status_code == 409
     admin_id = db.scalar(select(User).where(User.role == "ADMIN")).id
     assert client.patch(f"/api/users/{admin_id}", json={"is_active":False}).status_code == 409
+    assert client.patch(f"/api/users/{admin_id}", json={"role":"MANAGER"}).status_code == 409
+    for field in ("email", "display_name", "role", "is_active"):
+        assert client.patch(f"/api/users/{created.json()['id']}", json={field: None}).status_code == 422
+    assert client.patch(f"/api/users/{created.json()['id']}", json={"display_name":"   "}).status_code == 422
+    assert client.post("/api/users", json={"email":"blank@example.com","display_name":"   ","role":"CASHIER","temporary_password":"temporary-123"}).status_code == 422
 
 
 def test_expired_and_inactive_sessions_are_rejected(client, db):
     session = db.scalar(select(UserSession).where(UserSession.revoked_at.is_(None)))
     session.expires_at = utcnow() - timedelta(seconds=1); db.commit()
     assert client.get("/api/auth/me").status_code == 401
+
+
+def test_bootstrap_with_no_users(db):
+    user = _create_first_admin(db, "First@Example.com", "First Admin", "bootstrap-password", "bootstrap-password")
+    assert user.email == "first@example.com" and user.is_active and verify_password("bootstrap-password", user.password_hash)
+
+
+def test_bootstrap_upgrades_inactive_passwordless_legacy_admin(db):
+    legacy = User(email="legacy@example.com", display_name="Legacy", password_hash=None, role="ADMIN", is_active=False, must_change_password=True)
+    db.add(legacy); db.commit()
+    result = _create_first_admin(db, "LEGACY@example.com", "Recovered Admin", "bootstrap-password", "bootstrap-password")
+    assert result.id == legacy.id and result.is_active and result.display_name == "Recovered Admin"
+    assert verify_password("bootstrap-password", result.password_hash)
+
+
+def test_bootstrap_refuses_active_usable_admin(db):
+    db.add(User(email="admin@example.com", display_name="Admin", password_hash=hash_password("existing-password"), role="ADMIN", is_active=True, must_change_password=False)); db.commit()
+    try:
+        _create_first_admin(db, "new@example.com", "New", "bootstrap-password", "bootstrap-password")
+    except ValueError as error:
+        assert "active administrator" in str(error)
+    else:
+        raise AssertionError("bootstrap unexpectedly succeeded")
+
+
+def test_bootstrap_refuses_duplicate_nonlegacy_email(db):
+    db.add(User(email="used@example.com", display_name="Cashier", password_hash=hash_password("existing-password"), role="CASHIER", is_active=False, must_change_password=False)); db.commit()
+    try:
+        _create_first_admin(db, "USED@example.com", "New", "bootstrap-password", "bootstrap-password")
+    except ValueError as error:
+        assert "already in use" in str(error)
+    else:
+        raise AssertionError("bootstrap unexpectedly succeeded")
+
+
+def test_change_password_revokes_other_sessions(unauthenticated_client, db):
+    user = User(email="change@example.com", display_name="Change", password_hash=hash_password("original-password"), role="CASHIER", is_active=True, must_change_password=False)
+    db.add(user); db.commit()
+    first = unauthenticated_client
+    assert first.post("/api/auth/login", json={"email":user.email,"password":"original-password"}).status_code == 200
+    # Creating a second session directly represents another authenticated browser.
+    from app.models.user import UserSession
+    from app.security import token_digest
+    second = UserSession(user_id=user.id, token_hash=token_digest("other-session"), expires_at=utcnow()+timedelta(hours=1))
+    db.add(second); db.commit()
+    assert first.post("/api/auth/change-password", json={"current_password":"original-password","new_password":"replacement-password"}).status_code == 200
+    db.refresh(second); assert second.revoked_at is not None
+    assert first.post("/api/auth/login", json={"email":user.email,"password":"original-password"}).status_code == 401
+    assert first.post("/api/auth/login", json={"email":user.email,"password":"replacement-password"}).status_code == 200
+
+
+def test_inactive_user_and_must_change_restriction(unauthenticated_client, db):
+    inactive = User(email="inactive@example.com", display_name="Inactive", password_hash=hash_password("inactive-password"), role="CASHIER", is_active=False, must_change_password=False)
+    forced = User(email="forced@example.com", display_name="Forced", password_hash=hash_password("temporary-password"), role="CASHIER", is_active=True, must_change_password=True)
+    db.add_all([inactive, forced]); db.commit()
+    assert unauthenticated_client.post("/api/auth/login", json={"email":inactive.email,"password":"inactive-password"}).status_code == 401
+    assert unauthenticated_client.post("/api/auth/login", json={"email":forced.email,"password":"temporary-password"}).status_code == 200
+    assert unauthenticated_client.get("/api/products").status_code == 403
+    assert unauthenticated_client.get("/api/auth/me").status_code == 200
+    assert unauthenticated_client.post("/api/auth/change-password", json={"current_password":"temporary-password","new_password":"permanent-password"}).status_code == 200

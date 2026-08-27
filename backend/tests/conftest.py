@@ -25,15 +25,40 @@ def db() -> Session:
 
 
 @pytest.fixture
-def client(db: Session) -> TestClient:
-    db.add(User(email="test-admin@example.com", display_name="Test Admin", password_hash=hash_password("test-password-123"), role="ADMIN", is_active=True, must_change_password=False))
-    db.commit()
+def unauthenticated_client(db: Session) -> TestClient:
     def override_db():
         yield db
 
     app.dependency_overrides[get_db] = override_db
     with TestClient(app) as test_client:
-        response = test_client.post("/api/auth/login", json={"email": "test-admin@example.com", "password": "test-password-123"})
-        assert response.status_code == 200
         yield test_client
     app.dependency_overrides.clear()
+
+
+def authenticated_client(db: Session, client: TestClient, role: str) -> tuple[TestClient, User]:
+    email = f"test-{role.lower()}@example.com"
+    user = User(email=email, display_name=f"Test {role.title()}", password_hash=hash_password("test-password-123"), role=role, is_active=True, must_change_password=False)
+    db.add(user)
+    db.commit()
+    assert client.post("/api/auth/login", json={"email": email, "password": "test-password-123"}).status_code == 200
+    return client, user
+
+
+@pytest.fixture
+def admin_client(unauthenticated_client: TestClient, db: Session) -> TestClient:
+    return authenticated_client(db, unauthenticated_client, "ADMIN")[0]
+
+
+@pytest.fixture
+def manager_client(unauthenticated_client: TestClient, db: Session) -> TestClient:
+    return authenticated_client(db, unauthenticated_client, "MANAGER")[0]
+
+
+@pytest.fixture
+def cashier_client(unauthenticated_client: TestClient, db: Session) -> TestClient:
+    return authenticated_client(db, unauthenticated_client, "CASHIER")[0]
+
+
+@pytest.fixture
+def client(admin_client: TestClient) -> TestClient:
+    return admin_client

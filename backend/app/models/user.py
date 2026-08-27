@@ -20,7 +20,7 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(120))
-    password_hash: Mapped[str] = mapped_column(String(512))
+    password_hash: Mapped[str | None] = mapped_column(String(512))
     role: Mapped[str] = mapped_column(String(20), default=UserRole.CASHIER.value)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=True)

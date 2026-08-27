@@ -11,9 +11,11 @@ export function AuthProvider({children}:{children:ReactNode}) {
   const [user,setUser]=useState<AuthUser|null>(null); const [loading,setLoading]=useState(true)
   const refresh=async()=>{ try { setUser(await api.me()) } catch(error) { if(error instanceof ApiError && error.status===401)setUser(null); else throw error } finally { setLoading(false) } }
   useEffect(()=>{ void refresh() },[])
+  useEffect(()=>{const expired=()=>setUser(null);window.addEventListener('stockflow:session-expired',expired);return()=>window.removeEventListener('stockflow:session-expired',expired)},[])
   const login=async(email:string,password:string)=>{setUser(await api.login(email,password))}
   const logout=async()=>{try{await api.logout()}finally{setUser(null)}}
   return <AuthContext.Provider value={{user,loading,login,logout,refresh}}>{children}</AuthContext.Provider>
 }
 // The fallback keeps isolated component tests backwards-compatible; the browser entrypoint always installs AuthProvider.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(){return useContext(AuthContext)??testHarnessFallback}
