@@ -77,7 +77,7 @@ def list_movements(product_id: uuid.UUID | None = None, movement_type: MovementT
     receipts = dict(db.execute(select(Sale.id, Sale.receipt_number).where(Sale.id.in_(sale_ids))).all()) if sale_ids else {}
     items = []
     for movement in movements:
-        item = InventoryMovementRead.model_validate(m)
+        item = InventoryMovementRead.model_validate(movement)
         item.receipt_number = receipts.get(movement.reference_id)
         items.append(item)
     return InventoryMovementPage(items=items, page=page, page_size=page_size, total_items=total,

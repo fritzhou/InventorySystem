@@ -10,10 +10,14 @@ from app.models import Category, InventoryMovement, MovementType, Product
 def product(db, stock=10, active=True, name="Water", sku=None):
     category = db.scalar(select(Category).where(Category.name == "Inventory"))
     if not category:
-        category = Category(name="Inventory"); db.add(category); db.flush()
+        category = Category(name="Inventory")
+        db.add(category)
+        db.flush()
     item = Product(name=name, sku=sku or uuid.uuid4().hex, category_id=category.id, cost_price=Decimal("1"),
                    selling_price=Decimal("2"), current_stock=stock, minimum_stock=0, is_active=active)
-    db.add(item); db.commit(); return item
+    db.add(item)
+    db.commit()
+    return item
 
 
 def adjust(client, item, payload):
@@ -63,7 +67,8 @@ def test_history_filters_pagination_dates_and_inactive_products(client, db):
     b = adjust(client, second, {"type": "DAMAGE", "quantity": 1}).json()
     db.get(InventoryMovement, uuid.UUID(a["id"])).created_at = datetime(2026, 8, 1, tzinfo=timezone.utc)
     db.get(InventoryMovement, uuid.UUID(b["id"])).created_at = datetime(2026, 8, 27, tzinfo=timezone.utc)
-    first.is_active = False; db.commit()
+    first.is_active = False
+    db.commit()
     body = client.get("/api/inventory/movements").json()
     assert [row["id"] for row in body["items"]] == [b["id"], a["id"]]
     assert client.get("/api/inventory/movements", params={"product_id": str(first.id)}).json()["items"][0]["product"]["is_active"] is False
@@ -71,3 +76,38 @@ def test_history_filters_pagination_dates_and_inactive_products(client, db):
     assert client.get("/api/inventory/movements", params={"start_date": "2026-08-27"}).json()["total_items"] == 1
     page = client.get("/api/inventory/movements", params={"page": 2, "page_size": 1}).json()
     assert page["total_pages"] == 2 and len(page["items"]) == 1
+
+
+def test_history_serializes_a_movement_response(client, db):
+    item = product(db, stock=7, name="Serialized Water", sku="SERIAL-WATER")
+    created = adjust(client, item, {"type": "RESTOCK", "quantity": 3, "note": "Serialization check"})
+    assert created.status_code == 201
+
+    response = client.get("/api/inventory/movements")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [{
+            "id": created.json()["id"],
+            "product_id": str(item.id),
+            "movement_type": "RESTOCK",
+            "quantity_change": 3,
+            "stock_before": 7,
+            "stock_after": 10,
+            "reference_type": None,
+            "reference_id": None,
+            "note": "Serialization check",
+            "created_at": created.json()["created_at"],
+            "product": {
+                "id": str(item.id),
+                "name": "Serialized Water",
+                "sku": "SERIAL-WATER",
+                "is_active": True,
+            },
+            "receipt_number": None,
+        }],
+        "page": 1,
+        "page_size": 20,
+        "total_items": 1,
+        "total_pages": 1,
+    }
