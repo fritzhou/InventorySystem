@@ -47,6 +47,7 @@ class InventoryMovementRead(BaseModel):
     created_at: datetime
     product: MovementProduct
     receipt_number: str | None = None
+    po_number: str | None = None
 
 
 class InventoryMovementPage(BaseModel):
