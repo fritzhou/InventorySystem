@@ -62,3 +62,10 @@ test('must-change-password redirects to account',async()=>{
   window.history.replaceState({},'','/pos');vi.spyOn(globalThis,'fetch').mockResolvedValue(json(user('CASHIER',true)))
   render(<AuthProvider><App/></AuthProvider>);await waitFor(()=>expect(window.location.pathname).toBe('/account'))
 })
+
+test('application shell exposes accessible responsive navigation controls',async()=>{
+  window.history.replaceState({},'','/pos');vi.spyOn(globalThis,'fetch').mockResolvedValue(json(user('CASHIER')))
+  render(<AuthProvider><App/></AuthProvider>);expect(await screen.findByRole('navigation',{name:'Main navigation'})).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button',{name:'Open navigation'}));expect(screen.getByRole('button',{name:'Close navigation'})).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button',{name:'Close navigation'}));expect(screen.getByRole('link',{name:'StockFlow home'})).toBeInTheDocument()
+})

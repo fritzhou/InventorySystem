@@ -9,6 +9,7 @@ import { api, ApiError } from '../services/api'
 import { useProducts } from '../hooks/useProducts'
 import type { Category } from '../types/category'
 import type { ExternalProduct, Product, ProductInput, ProductUpdateInput } from '../types/product'
+import { LoadingState, PageHeader, StatCard } from '../components/ui'
 
 export function ProductsPage() {
   const [searchInput, setSearchInput] = useState('')
@@ -120,10 +121,14 @@ export function ProductsPage() {
     catch (requestError) { setAdjustmentError(requestError instanceof Error ? requestError.message : 'Stock adjustment could not be completed.') }
     finally { setIsSaving(false) }
   }
+  const lowStock = products.filter((product) => product.is_active && product.current_stock > 0 && product.current_stock <= product.minimum_stock).length
+  const outOfStock = products.filter((product) => product.is_active && product.current_stock === 0).length
+  const inventoryValue = products.reduce((total, product) => total + Number(product.cost_price) * product.current_stock, 0)
 
   return (
     <section aria-labelledby="products-heading">
-      <div className="page-heading"><div><span className="eyebrow">Inventory catalog</span><h1 id="products-heading">Products</h1><p>Manage product details, pricing, barcodes, and stock thresholds.</p></div><div className="heading-actions"><button className="button secondary" onClick={openScanner}>Scan barcode</button><button className="button primary" onClick={() => openCreate()}>+ New product</button></div></div>
+      <PageHeader eyebrow="Inventory catalog" title="Products" description="Manage product details, pricing, barcodes, and stock thresholds." actions={<><button className="button secondary" onClick={openScanner}>Scan barcode</button><button className="button primary" onClick={() => openCreate()}>+ Add Product</button></>} />
+      {!isLoading && !error && <div className="catalog-stats"><StatCard label="Products shown" value={products.length} icon="products"/><StatCard label="Stock alerts" value={lowStock} icon="warning" tone="warning" detail="Items at or below threshold"/><StatCard label="Out of stock" value={outOfStock} icon="warning" tone="danger"/><StatCard label="Inventory value" value={new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}).format(inventoryValue)} icon="money" tone="success"/></div>}
       <div className="management-layout">
         <div className="card product-list-card">
           <form className="filters" onSubmit={submitSearch}>
@@ -132,7 +137,7 @@ export function ProductsPage() {
             <label className="checkbox"><input type="checkbox" checked={showInactive} onChange={(event) => setShowInactive(event.target.checked)} /> Include inactive</label>
           </form>
           <div className="list-summary"><strong>{products.length} products</strong>{search && <button className="text-button" onClick={() => { setSearch(''); setSearchInput('') }}>Clear search</button>}</div>
-          {isLoading && <p role="status" className="loading">Loading products…</p>}
+          {isLoading && <LoadingState label="Loading products" />}
           {error && <p className="error" role="alert">{error} <button className="text-button" onClick={refresh}>Retry</button></p>}
           {!isLoading && !error && <ProductTable products={products} categories={categories} onEdit={openEdit} onDeactivate={setConfirmingProduct} onAdjustStock={(product) => { setAdjustmentError(null); setAdjustingProduct(product) }} />}
         </div>

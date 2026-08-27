@@ -41,7 +41,7 @@ export function PurchaseOrdersPage() {
 
   const apply = (event: FormEvent) => { event.preventDefault(); setPage(1); setFilters(draft) }
   const clear = () => { setDraft(emptyFilters); setFilters(emptyFilters); setPage(1) }
-  return <section>
+  return <section className="page-content purchase-orders-page">
     <div className="page-heading"><div><span className="eyebrow">Purchasing</span><h1>Purchase Orders</h1><p>Order and receive stock with an auditable workflow.</p></div><a className="button primary button-link" href="/purchase-orders/new">New Purchase Order</a></div>
     {error && <p className="error" role="alert">{error}</p>}
     <form className="card po-filters" onSubmit={apply}>
