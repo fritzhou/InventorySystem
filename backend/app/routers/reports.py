@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.database import get_db
+from app.dependencies.auth import admin_role
 from app.models import Expense, ExpenseStatus, Product, Sale, SaleItem, SaleReturn, SaleReturnItem
 from app.schemas.report import ExpenseBreakdownItem, ExpenseSummary, InventoryStatus, ReportSummary, SalesTrendPoint, StockProduct, TopProduct
 
-router = APIRouter(prefix="/api/reports", tags=["reports"])
+router = APIRouter(prefix="/api/reports", tags=["reports"], dependencies=[Depends(admin_role)])
 CENT = Decimal("0.01")
 
 

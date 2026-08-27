@@ -17,6 +17,7 @@ def normalize_optional_barcode(value: str | None) -> str | None:
 
 
 class ProductBase(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=160)
     sku: str = Field(min_length=1, max_length=64)
     barcode: str | None = Field(default=None, max_length=64)
@@ -42,6 +43,8 @@ class ProductCreate(ProductBase):
 
 
 class ProductUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str | None = Field(default=None, min_length=1, max_length=160)
     sku: str | None = Field(default=None, min_length=1, max_length=64)
     barcode: str | None = Field(default=None, max_length=64)
@@ -70,6 +73,19 @@ class ProductRead(ProductBase):
     updated_at: datetime
 
 
+class ProductSafeRead(BaseModel):
+    """Operational product fields safe for cashier clients."""
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    name: str
+    sku: str
+    barcode: str | None
+    selling_price: Decimal
+    current_stock: int
+    minimum_stock: int
+    is_active: bool
+
+
 class ExternalProductRead(BaseModel):
     barcode: str
     product_name: str | None = None
@@ -83,5 +99,13 @@ class ProductLookupRead(BaseModel):
     found: bool
     source: str
     product: ProductRead | None = None
+    external_product: ExternalProductRead | None = None
+    reason: str | None = None
+
+
+class ProductLookupSafeRead(BaseModel):
+    found: bool
+    source: str
+    product: ProductSafeRead | None = None
     external_product: ExternalProductRead | None = None
     reason: str | None = None

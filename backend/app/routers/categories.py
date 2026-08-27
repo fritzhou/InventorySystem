@@ -4,10 +4,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies.auth import manager_role
 from app.models import Category
 from app.schemas.category import CategoryCreate, CategoryRead
 
-router = APIRouter(prefix="/api/categories", tags=["categories"])
+router = APIRouter(prefix="/api/categories", tags=["categories"], dependencies=[Depends(manager_role)])
 
 
 @router.get("", response_model=list[CategoryRead])

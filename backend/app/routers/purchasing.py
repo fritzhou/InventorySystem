@@ -2,15 +2,18 @@ import uuid
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from secrets import token_hex
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 from app.database import get_db
+from app.audit import record_audit
+from app.dependencies.auth import manager_role
+from app.models.user import User
 from app.models import InventoryMovement, MovementType, Product, PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus, Supplier
 from app.schemas.purchasing import POCreate, POPage, PORead, POUpdate, ReceiveInput, SupplierInput, SupplierPage, SupplierRead, SupplierUpdate
 
-router=APIRouter(tags=["purchasing"]); MONEY=Decimal("0.01")
+router=APIRouter(tags=["purchasing"], dependencies=[Depends(manager_role)]); MONEY=Decimal("0.01")
 def fail(code,msg): raise HTTPException(status_code=code,detail=msg)
 def supplier_or_404(db,id,active=False):
     obj=db.get(Supplier,id)
@@ -44,22 +47,23 @@ def suppliers(search:str="",active_only:bool=True,page:int=Query(1,ge=1),page_si
     items=list(db.scalars(select(Supplier).where(*f).order_by(Supplier.name).offset((page-1)*page_size).limit(page_size)))
     return SupplierPage(items=items,page=page,page_size=page_size,total_items=total,total_pages=(total+page_size-1)//page_size)
 @router.post("/api/suppliers",response_model=SupplierRead,status_code=201)
-def create_supplier(payload:SupplierInput,db:Session=Depends(get_db)):
+def create_supplier(payload:SupplierInput,db:Session=Depends(get_db),actor:User=Depends(manager_role)):
     if db.scalar(select(Supplier).where(func.lower(Supplier.name)==payload.name.lower())): fail(409,"A supplier with this name already exists.")
-    obj=Supplier(**payload.model_dump()); db.add(obj); db.commit(); db.refresh(obj); return obj
+    obj=Supplier(**payload.model_dump()); db.add(obj); db.flush(); record_audit(db,actor,"SUPPLIER_CREATED","SUPPLIER",obj.id); db.commit(); db.refresh(obj); return obj
 @router.get("/api/suppliers/{id}",response_model=SupplierRead)
 def get_supplier(id:uuid.UUID,db:Session=Depends(get_db)): return supplier_or_404(db,id)
 @router.patch("/api/suppliers/{id}",response_model=SupplierRead)
-def patch_supplier(id:uuid.UUID,payload:SupplierUpdate,db:Session=Depends(get_db)):
+def patch_supplier(id:uuid.UUID,payload:SupplierUpdate,db:Session=Depends(get_db),actor:User=Depends(manager_role)):
     obj=supplier_or_404(db,id)
     for k,v in payload.model_dump(exclude_unset=True).items(): setattr(obj,k,v.strip() if isinstance(v,str) else v)
     if not obj.name: fail(422,"Supplier name is required.")
+    record_audit(db,actor,"SUPPLIER_UPDATED","SUPPLIER",obj.id)
     try: db.commit()
     except IntegrityError: db.rollback(); fail(409,"A supplier with this name already exists.")
     db.refresh(obj); return obj
 @router.delete("/api/suppliers/{id}",response_model=SupplierRead)
-def delete_supplier(id:uuid.UUID,db:Session=Depends(get_db)):
-    obj=supplier_or_404(db,id); obj.is_active=False; db.commit(); db.refresh(obj); return obj
+def delete_supplier(id:uuid.UUID,db:Session=Depends(get_db),actor:User=Depends(manager_role)):
+    obj=supplier_or_404(db,id); obj.is_active=False; record_audit(db,actor,"SUPPLIER_DEACTIVATED","SUPPLIER",obj.id); db.commit(); db.refresh(obj); return obj
 
 @router.get("/api/purchase-orders",response_model=POPage)
 def list_pos(search:str="",supplier_id:uuid.UUID|None=None,status_filter:PurchaseOrderStatus|None=Query(None,alias="status"),from_date:date|None=None,to_date:date|None=None,page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),db:Session=Depends(get_db)):
@@ -74,32 +78,32 @@ def list_pos(search:str="",supplier_id:uuid.UUID|None=None,status_filter:Purchas
     items=list(db.scalars(po_query().where(*f).order_by(PurchaseOrder.order_date.desc(),PurchaseOrder.po_number.desc()).offset((page-1)*page_size).limit(page_size)))
     return POPage(items=items,page=page,page_size=page_size,total_items=total,total_pages=(total+page_size-1)//page_size)
 @router.post("/api/purchase-orders",response_model=PORead,status_code=201)
-def create_po(payload:POCreate,db:Session=Depends(get_db)):
+def create_po(payload:POCreate,db:Session=Depends(get_db),actor:User=Depends(manager_role)):
     supplier_or_404(db,payload.supplier_id,True)
     po=PurchaseOrder(po_number=f"PO-{date.today():%Y%m%d}-{token_hex(2).upper()}",supplier_id=payload.supplier_id,expected_date=payload.expected_date,notes=payload.notes,subtotal=0)
-    set_items(db,po,payload); db.add(po)
+    set_items(db,po,payload); db.add(po); db.flush(); record_audit(db,actor,"PURCHASE_ORDER_CREATED","PURCHASE_ORDER",po.id)
     try: db.commit()
     except IntegrityError: db.rollback(); fail(409,"Purchase order could not be created. Please try again.")
     return po_or_404(db,po.id)
 @router.get("/api/purchase-orders/{id}",response_model=PORead)
 def get_po(id:uuid.UUID,db:Session=Depends(get_db)): return po_or_404(db,id)
 @router.patch("/api/purchase-orders/{id}",response_model=PORead)
-def patch_po(id:uuid.UUID,payload:POUpdate,db:Session=Depends(get_db)):
+def patch_po(id:uuid.UUID,payload:POUpdate,db:Session=Depends(get_db),actor:User=Depends(manager_role)):
     po=po_or_404(db,id)
     if po.status!=PurchaseOrderStatus.DRAFT: fail(409,"Only draft purchase orders may be edited.")
-    supplier_or_404(db,payload.supplier_id,True); po.supplier_id=payload.supplier_id; po.expected_date=payload.expected_date; po.notes=payload.notes; set_items(db,po,payload); db.commit(); return po_or_404(db,id)
+    supplier_or_404(db,payload.supplier_id,True); po.supplier_id=payload.supplier_id; po.expected_date=payload.expected_date; po.notes=payload.notes; set_items(db,po,payload); record_audit(db,actor,"PURCHASE_ORDER_UPDATED","PURCHASE_ORDER",po.id); db.commit(); return po_or_404(db,id)
 @router.post("/api/purchase-orders/{id}/mark-ordered",response_model=PORead)
-def mark_ordered(id:uuid.UUID,db:Session=Depends(get_db)):
+def mark_ordered(id:uuid.UUID,db:Session=Depends(get_db),actor:User=Depends(manager_role)):
     po=po_or_404(db,id,True)
     if po.status!=PurchaseOrderStatus.DRAFT: fail(409,"Only a draft purchase order may be marked as ordered.")
-    po.status=PurchaseOrderStatus.ORDERED; db.commit(); return po_or_404(db,id)
+    po.status=PurchaseOrderStatus.ORDERED; record_audit(db,actor,"PURCHASE_ORDER_ORDERED","PURCHASE_ORDER",po.id); db.commit(); return po_or_404(db,id)
 @router.post("/api/purchase-orders/{id}/cancel",response_model=PORead)
-def cancel(id:uuid.UUID,db:Session=Depends(get_db)):
+def cancel(id:uuid.UUID,db:Session=Depends(get_db),actor:User=Depends(manager_role)):
     po=po_or_404(db,id,True)
     if po.status not in (PurchaseOrderStatus.DRAFT,PurchaseOrderStatus.ORDERED) or any(x.received_quantity for x in po.items): fail(409,"Purchase order cannot be cancelled after stock has been received.")
-    po.status=PurchaseOrderStatus.CANCELLED; db.commit(); return po_or_404(db,id)
+    po.status=PurchaseOrderStatus.CANCELLED; record_audit(db,actor,"PURCHASE_ORDER_CANCELLED","PURCHASE_ORDER",po.id); db.commit(); return po_or_404(db,id)
 @router.post("/api/purchase-orders/{id}/receive",response_model=PORead)
-def receive(id:uuid.UUID,payload:ReceiveInput,db:Session=Depends(get_db)):
+def receive(id:uuid.UUID,payload:ReceiveInput,db:Session=Depends(get_db),actor:User=Depends(manager_role)):
     try:
         po=po_or_404(db,id,True)
         if po.status==PurchaseOrderStatus.RECEIVED: fail(409,"Purchase order has already been fully received.")
@@ -124,8 +128,9 @@ def receive(id:uuid.UUID,payload:ReceiveInput,db:Session=Depends(get_db)):
             ).values(current_stock=after, cost_price=average))
             if result.rowcount!=1: fail(409,"Inventory changed while receiving. Please try again.")
             line.received_quantity+=req.quantity
-            db.add(InventoryMovement(product_id=product.id,movement_type=MovementType.RESTOCK,quantity_change=req.quantity,stock_before=before,stock_after=after,reference_type="PURCHASE_ORDER",reference_id=po.id,note=f"Received on {po.po_number}"))
+            db.add(InventoryMovement(product_id=product.id,movement_type=MovementType.RESTOCK,quantity_change=req.quantity,stock_before=before,stock_after=after,reference_type="PURCHASE_ORDER",reference_id=po.id,note=f"Received on {po.po_number}",actor_user_id=actor.id))
         po.status=PurchaseOrderStatus.RECEIVED if all(x.received_quantity==x.ordered_quantity for x in po.items) else PurchaseOrderStatus.PARTIALLY_RECEIVED
+        record_audit(db,actor,"PURCHASE_ORDER_RECEIVED","PURCHASE_ORDER",po.id,{"partial":po.status==PurchaseOrderStatus.PARTIALLY_RECEIVED})
         db.commit(); return po_or_404(db,id)
     except HTTPException: db.rollback(); raise
     except SQLAlchemyError as exc: db.rollback(); raise HTTPException(500,"Purchase order could not be received.") from exc
