@@ -2,10 +2,10 @@
 import argparse
 import os
 from pathlib import Path
-from urllib.parse import unquote, urlparse
 from uuid import UUID
 
 from sqlalchemy import MetaData, create_engine, func, inspect, select
+from sqlalchemy.engine import make_url
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 HEAD = "20260827_0009"
@@ -18,8 +18,10 @@ SEED_NAMES = {"Rent", "Utilities", "Salaries/Wages", "Transportation", "Supplies
 
 
 def _sqlite_path(url: str) -> Path | None:
-    if url.startswith("sqlite:///") and not url.startswith("sqlite:///:memory:"):
-        return Path(unquote(urlparse(url).path))
+    if url.startswith("sqlite:"):
+        database = make_url(url).database
+        if database and database != ":memory:":
+            return Path(database)
     return None
 
 
@@ -52,10 +54,13 @@ def transfer(source_url: str, target_url: str, dry_run: bool = False) -> dict[st
         tables = [t for t in target_meta.sorted_tables if t.name in source_names and t.name not in SKIP]
         for table in tables:
             count = target.execute(select(func.count()).select_from(table)).scalar_one()
-            if table.name == "expense_categories" and count:
-                names = set(target.execute(select(table.c.name)).scalars())
-                if not names <= SEED_NAMES:
-                    raise RuntimeError("target contains established expense categories")
+            if table.name == "expense_categories":
+                rows = target.execute(select(table.c.name, table.c.description, table.c.is_active)).all()
+                names = {row.name for row in rows}
+                untouched = (len(rows) == len(SEED_NAMES) and names == SEED_NAMES and
+                             all(row.description is None and row.is_active is True for row in rows))
+                if not untouched:
+                    raise RuntimeError("target migration seed expense categories are not untouched")
             elif count:
                 raise RuntimeError(f"target contains data in {table.name}")
         counts: dict[str, int] = {}

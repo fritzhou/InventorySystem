@@ -43,7 +43,8 @@ def downgrade() -> None:
     dialect = op.get_bind().dialect.name
     # The old enum cannot represent MANAGER. A downgraded installation maps
     # those accounts to CASHIER before the Phase 11 activation field is removed.
-    op.execute("UPDATE users SET role = 'CASHIER', is_active = 0 WHERE role = 'MANAGER'")
+    users = sa.table("users", sa.column("role", sa.String()), sa.column("is_active", sa.Boolean()))
+    op.execute(sa.update(users).where(users.c.role == "MANAGER").values(role="CASHIER", is_active=False))
     for table, columns in {"expenses":["voided_by_user_id","updated_by_user_id","created_by_user_id"], "inventory_movements":["actor_user_id"], "sale_returns":["processed_by_user_id"], "sales":["processed_by_user_id"]}.items():
         with op.batch_alter_table(table) as batch:
             for column in columns: batch.drop_column(column)
