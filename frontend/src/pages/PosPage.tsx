@@ -81,7 +81,7 @@ export function PosPage() {
   return <>
     <div className="page-heading"><div><span className="eyebrow">Cashier workspace</span><h1>Point of Sale</h1><p>Search or scan products, then take a secure cash payment.</p></div><button className="button secondary" onClick={() => setScanner(true)}>▣ Scan Barcode</button></div>
     {message && <div className="error pos-message" role="alert">{message}{message === 'Product not registered in inventory' && <> · <a href="/">Register product</a></>}</div>}
-    <div className="pos-layout">
+    <div className="pos-layout" aria-label="Point of sale workspace">
       <section className="card product-picker"><form className="pos-search" onSubmit={(event: FormEvent) => { event.preventDefault(); void search() }}><label className="sr-only" htmlFor="pos-search">Search name, SKU, or barcode</label><input id="pos-search" placeholder="Search name, SKU, or barcode" value={query} onChange={(event) => setQuery(event.target.value)} /><button className="button primary">Search</button></form>
         <div className="pos-results">{results.length === 0 ? <p className="empty">No matching active products.</p> : results.map((product) => <article key={product.id} className="result-item"><div><strong>{product.name}</strong><span>{product.sku}{product.barcode ? ` · ${product.barcode}` : ''}</span><small>{money(cents(product.selling_price))} · {product.current_stock} available</small></div><button className="button secondary" disabled={product.current_stock === 0} onClick={() => add(product)}>{product.current_stock ? 'Add' : 'Out of stock'}</button></article>)}</div>
       </section>

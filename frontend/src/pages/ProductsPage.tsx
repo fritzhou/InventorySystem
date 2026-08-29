@@ -124,7 +124,7 @@ export function ProductsPage() {
   return (
     <section aria-labelledby="products-heading">
       <div className="page-heading"><div><span className="eyebrow">Inventory catalog</span><h1 id="products-heading">Products</h1><p>Manage product details, pricing, barcodes, and stock thresholds.</p></div><div className="heading-actions"><button className="button secondary" onClick={openScanner}>Scan barcode</button><button className="button primary" onClick={() => openCreate()}>+ New product</button></div></div>
-      <div className="management-layout">
+      <div className="management-layout" aria-label="Product catalog workspace">
         <div className="card product-list-card">
           <form className="filters" onSubmit={submitSearch}>
             <label className="search-field"><span className="sr-only">Search products</span><input placeholder="Search name, SKU, or barcode" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} /><button className="button secondary">Search</button></label>

@@ -12,7 +12,7 @@ function TrendChart({ data }: { data: TrendPoint[] }) {
 }
 
 function Metrics({ summary }: { summary: ReportSummary }) {
-  return <div className="metric-grid">
+  return <div className="metric-grid" aria-label="Business performance metrics">
     <article className="metric-card"><span>Revenue</span><strong>{formatMoney(summary.sales_total)}</strong></article>
     <article className="metric-card"><span>Transactions</span><strong>{summary.transaction_count}</strong></article>
     <article className="metric-card"><span>Items Sold</span><strong>{summary.items_sold}</strong></article>
