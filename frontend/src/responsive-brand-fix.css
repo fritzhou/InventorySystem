@@ -1,0 +1,108 @@
+/* Responsive refinements for the Inventra-inspired StockFlow shell. */
+
+/* Tablet / mobile-desktop view: keep the full StockFlow brand and navigation labels visible. */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .app-shell,
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 230px minmax(0, 1fr) !important;
+  }
+
+  .sidebar-brand {
+    padding: 0 14px !important;
+  }
+
+  .sidebar-brand > a {
+    justify-content: flex-start !important;
+  }
+
+  .sidebar-brand .brand-mark {
+    display: grid !important;
+    flex: 0 0 42px;
+  }
+
+  .sidebar-brand .brand-copy,
+  .nav-section span,
+  .nav-section p,
+  .nav-section a i,
+  .sidebar-account a > span:last-child,
+  .sidebar-account button > span:last-child {
+    display: block !important;
+  }
+
+  .nav-section a,
+  .sidebar-account > a,
+  .sidebar-account > button {
+    justify-content: flex-start !important;
+    padding: 0 12px !important;
+  }
+
+  .sidebar-toggle {
+    display: grid !important;
+    place-items: center;
+    margin-left: auto;
+  }
+}
+
+/* Keep the stock-attention block readable instead of allowing product text to run together. */
+.inventory-attention {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #ececf3;
+  border-radius: 11px;
+  background: #fbfbfe;
+}
+
+.inventory-attention > span {
+  display: block;
+  margin-bottom: 7px;
+  color: #8b90a0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.inventory-attention a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 0;
+  border-top: 1px solid #eff0f5;
+  color: #25293c;
+  text-decoration: none;
+}
+
+.inventory-attention a:first-of-type {
+  border-top: 0;
+}
+
+.inventory-attention a > span {
+  min-width: 0;
+}
+
+.inventory-attention strong,
+.inventory-attention small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inventory-attention small {
+  margin-top: 3px;
+  color: #9398a7;
+  font-size: 10px;
+}
+
+.inventory-attention b {
+  color: #ed4f86;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .inventory-attention a {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
