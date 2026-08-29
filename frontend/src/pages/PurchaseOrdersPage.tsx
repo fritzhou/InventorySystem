@@ -52,7 +52,7 @@ export function PurchaseOrdersPage() {
       <label>To<input aria-label="To date" type="date" value={draft.toDate} onChange={(e) => setDraft({ ...draft, toDate: e.target.value })} /></label>
       <button className="button primary">Apply</button><button type="button" className="button secondary" onClick={clear}>Clear</button>
     </form>
-    <div className="card movement-list">{data.items.length ? data.items.map((x) => {
+    <div className="card movement-list" aria-label="Purchase orders">{data.items.length ? data.items.map((x) => {
       const ordered = x.items.reduce((sum, item) => sum + item.ordered_quantity, 0)
       const received = x.items.reduce((sum, item) => sum + item.received_quantity, 0)
       return <article className="po-row" key={x.id}><div><b>{x.po_number}</b><small>{x.supplier.name}</small></div><span className="movement-type">{x.status.replaceAll('_', ' ')}</span><div>Ordered: {ordered}<small>Received: {received}</small></div><b>{formatMoney(x.subtotal)}</b><a className="button secondary button-link" href={`/purchase-orders?id=${x.id}`}>View</a></article>

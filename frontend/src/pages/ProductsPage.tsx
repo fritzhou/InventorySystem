@@ -9,6 +9,7 @@ import { api, ApiError } from '../services/api'
 import { useProducts } from '../hooks/useProducts'
 import type { Category } from '../types/category'
 import type { ExternalProduct, Product, ProductInput, ProductUpdateInput } from '../types/product'
+import { LoadingState, Notice, PageHeader } from '../components/ui'
 
 export function ProductsPage() {
   const [searchInput, setSearchInput] = useState('')
@@ -120,22 +121,26 @@ export function ProductsPage() {
     catch (requestError) { setAdjustmentError(requestError instanceof Error ? requestError.message : 'Stock adjustment could not be completed.') }
     finally { setIsSaving(false) }
   }
+  const lowStock = products.filter((product) => product.is_active && product.current_stock > 0 && product.current_stock <= product.minimum_stock).length
+  const outOfStock = products.filter((product) => product.is_active && product.current_stock === 0).length
 
   return (
-    <section aria-labelledby="products-heading">
-      <div className="page-heading"><div><span className="eyebrow">Inventory catalog</span><h1 id="products-heading">Products</h1><p>Manage product details, pricing, barcodes, and stock thresholds.</p></div><div className="heading-actions"><button className="button secondary" onClick={openScanner}>Scan barcode</button><button className="button primary" onClick={() => openCreate()}>+ New product</button></div></div>
-      <div className="management-layout">
-        <div className="card product-list-card">
-          <form className="filters" onSubmit={submitSearch}>
+    <section className="products-page">
+      <PageHeader eyebrow="Inventory catalog" title="Products" description="Manage product details, pricing, barcodes, and stock thresholds." actions={<><button className="button secondary" aria-label="Scan barcode" onClick={openScanner}>▣ Scan barcode</button><button className="button primary" onClick={() => openCreate()}>+ New product</button></>} />
+      <div className="catalog-summary" aria-label="Catalog status"><div><span>Visible products</span><strong>{products.length}</strong></div><div><span>Below minimum</span><strong className="warning-text">{lowStock}</strong></div><div><span>Out of stock</span><strong className="danger-text">{outOfStock}</strong></div></div>
+      <div className="management-layout catalog-layout" aria-label="Product catalog workspace">
+        <section className="card product-list-card" aria-labelledby="catalog-list-title">
+          <div className="catalog-card-heading"><div><span className="eyebrow">Catalog</span><h2 id="catalog-list-title">Product list</h2></div><span>{products.length} {products.length === 1 ? 'result' : 'results'}</span></div>
+          <form className="filters catalog-toolbar" onSubmit={submitSearch}>
             <label className="search-field"><span className="sr-only">Search products</span><input placeholder="Search name, SKU, or barcode" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} /><button className="button secondary">Search</button></label>
             <label><span className="sr-only">Filter by category</span><select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">All categories</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
             <label className="checkbox"><input type="checkbox" checked={showInactive} onChange={(event) => setShowInactive(event.target.checked)} /> Include inactive</label>
           </form>
-          <div className="list-summary"><strong>{products.length} products</strong>{search && <button className="text-button" onClick={() => { setSearch(''); setSearchInput('') }}>Clear search</button>}</div>
-          {isLoading && <p role="status" className="loading">Loading products…</p>}
-          {error && <p className="error" role="alert">{error} <button className="text-button" onClick={refresh}>Retry</button></p>}
+          {(search || categoryId || showInactive) && <div className="active-filters"><span>Filters applied</span><button className="text-button" onClick={() => { setSearch(''); setSearchInput(''); setCategoryId(''); setShowInactive(false) }}>Clear all</button></div>}
+          {isLoading && <LoadingState label="Loading product catalog…" />}
+          {error && <Notice tone="error">{error} <button className="text-button" onClick={refresh}>Retry</button></Notice>}
           {!isLoading && !error && <ProductTable products={products} categories={categories} onEdit={openEdit} onDeactivate={setConfirmingProduct} onAdjustStock={(product) => { setAdjustmentError(null); setAdjustingProduct(product) }} />}
-        </div>
+        </section>
         <aside className="card categories-card"><div><span className="eyebrow">Organization</span><h2>Categories</h2></div><ul className="category-list">{categories.map((category) => <li key={category.id}><strong>{category.name}</strong><span>{category.description || 'No description'}</span></li>)}</ul>{categories.length === 0 && !categoryError && <p className="muted">Create your first category before adding products.</p>}<CategoryForm isSaving={isCategorySaving} error={categoryError} onSubmit={createCategory} /></aside>
       </div>
       {isFormOpen && <div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><div className="modal-heading"><div><span className="eyebrow">{editingProduct ? 'Update catalog' : 'Catalog setup'}</span><h2 id="product-form-title">{editingProduct ? 'Edit product' : 'Create product'}</h2></div><button className="icon-button" aria-label="Close" onClick={closeForm}>×</button></div>{categories.length === 0 && <p className="notice">Create a category before adding a product.</p>}<ProductForm categories={categories} product={editingProduct} initialBarcode={editingProduct ? '' : scannedBarcode} initialName={editingProduct ? '' : externalProduct?.product_name ?? ''} initialCategoryId={editingProduct ? '' : suggestedCategoryId} isSaving={isSaving} error={formError} onCancel={closeForm} onSubmit={saveProduct} /></section></div>}

@@ -56,7 +56,7 @@ export function SalesHistoryPage() {
     </form>
     {error && <div className="error history-error" role="alert">{error}</div>}
     {detailError && <div className="error history-error" role="alert">{detailError}</div>}
-    <section className="card history-list" aria-label="Completed sales">
+    <section className="card history-list" aria-label="Completed sales history">
       {loading ? <p className="loading">Loading sales…</p> : data.items.length === 0 ? <p className="empty">No sales found.</p> : data.items.map((item) => <article className="sale-row" key={item.id}>
         <div><strong>{item.receipt_number}</strong><time>{new Date(item.created_at).toLocaleString()}</time></div>
         <span>{item.item_count} {item.item_count === 1 ? 'item' : 'items'}</span><strong>{formatMoney(item.total)}</strong><span>{item.payment_method.charAt(0).toUpperCase() + item.payment_method.slice(1)}</span>
