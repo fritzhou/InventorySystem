@@ -39,16 +39,19 @@ export function AppShell({ user, currentPath, title, nav, logout, children }: { 
   useEffect(() => { localStorage.setItem('stockflow-sidebar', collapsed ? 'collapsed' : 'expanded') }, [collapsed])
 
   const sections = [...new Set(nav.map(item => item.section))]
+  const navigationLocked = user.must_change_password
 
-  return <div className={`app-shell ${collapsed ? 'sidebar-collapsed' : ''} ${drawer ? 'drawer-open' : ''}`}>
+  return <div className={`app-shell ${collapsed ? 'sidebar-collapsed' : ''} ${drawer ? 'drawer-open' : ''} ${navigationLocked ? 'navigation-locked' : ''}`}>
     <aside className="sidebar" aria-label="Application navigation">
       <div className="sidebar-brand">
-        <a href={user.role === 'ADMIN' ? '/dashboard' : '/pos'} aria-label="StockFlow home"><span className="brand-mark"><Logo/></span><span className="brand-copy"><b>StockFlow</b><small>Inventory management</small></span></a>
+        <a href={navigationLocked ? '/account' : user.role === 'ADMIN' ? '/dashboard' : '/pos'} aria-label="StockFlow home"><span className="brand-mark"><Logo/></span><span className="brand-copy"><b>StockFlow</b><small>Inventory management</small></span></a>
         <button className="sidebar-toggle" onClick={() => setCollapsed(value => !value)} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>‹</button>
       </div>
 
+      {navigationLocked && <div className="sidebar-security-note"><span aria-hidden="true">●</span><div><strong>Setup required</strong><small>Change your temporary password to unlock StockFlow.</small></div></div>}
+
       <nav aria-label="Main navigation">
-        {sections.map(section => <section className="nav-section" key={section}><p>{section}</p>{nav.filter(item => item.section === section && item.roles.includes(user.role)).map(item => <a href={item.path} className={currentPath === item.path ? 'active' : ''} key={item.path} title={collapsed ? item.label : undefined}><Icon name={item.icon}/><span>{item.label}</span><i aria-hidden="true">›</i></a>)}</section>)}
+        {sections.map(section => <section className="nav-section" key={section}><p>{section}</p>{nav.filter(item => item.section === section && item.roles.includes(user.role)).map(item => <a href={navigationLocked ? '/account' : item.path} aria-disabled={navigationLocked || undefined} className={`${currentPath === item.path ? 'active' : ''} ${navigationLocked ? 'locked' : ''}`.trim()} key={item.path} title={navigationLocked ? 'Change your password to unlock this page' : collapsed ? item.label : undefined} onClick={navigationLocked ? (event) => event.preventDefault() : undefined}><Icon name={item.icon}/><span>{item.label}</span><i aria-hidden="true">{navigationLocked ? '•' : '›'}</i></a>)}</section>)}
       </nav>
 
       <div className="sidebar-account">
