@@ -13,4 +13,4 @@ RUN pip install --no-cache-dir -r requirements.txt && useradd --create-home --ui
 COPY --chown=stockflow:stockflow backend/ ./
 COPY --from=frontend-build --chown=stockflow:stockflow /build/frontend/dist ./static
 USER stockflow
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --forwarded-allow-ips ${PROXY_FORWARDED_ALLOW_IPS:-127.0.0.1}"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --forwarded-allow-ips ${PROXY_FORWARDED_ALLOW_IPS:-127.0.0.1}"]
