@@ -27,6 +27,10 @@ function Logo() {
   return <svg className="flow-logo" aria-hidden="true" viewBox="0 0 42 42" fill="none"><path d="M9 11h20c3.3 0 6 2.7 6 6s-2.7 6-6 6H15c-3.3 0-6 2.7-6 6s2.7 6 6 6h18"/><circle cx="9" cy="11" r="2.4"/><circle cx="33" cy="35" r="2.4"/></svg>
 }
 
+function LogoutIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M10 5H5v14h5"/><path d="M14 8l4 4-4 4M18 12H9"/></svg>
+}
+
 export function AppShell({ user, currentPath, title, nav, logout, children }: { user: AuthUser; currentPath: string; title: string; nav: NavItem[]; logout: () => Promise<void>; children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('stockflow-sidebar') === 'collapsed')
   const [drawer, setDrawer] = useState(false)
@@ -61,6 +65,7 @@ export function AppShell({ user, currentPath, title, nav, logout, children }: { 
         <div className="topbar-context"><span>StockFlow</span><strong className="topbar-title">{title}</strong></div>
         <div className="topbar-spacer"/>
         <a className="topbar-account" href="/account"><span className="avatar">{user.display_name.slice(0, 2).toUpperCase()}</span><span>{user.display_name}<small>{user.role}</small></span><b aria-hidden="true">⌄</b></a>
+        <button type="button" className="topbar-logout" onClick={() => void logout()} aria-label="Log out" title="Log out"><LogoutIcon/><span>Log out</span></button>
       </header>
       <main>{children}</main>
     </div>
