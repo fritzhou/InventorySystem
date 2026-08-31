@@ -4,11 +4,11 @@ import type { AuthUser, Role } from '../auth'
 export type NavItem = { path: string; label: string; roles: Role[]; icon: string; section: string }
 
 const icons: Record<string, ReactNode> = {
-  dashboard: <><path d="M4 13h6V4H4v9Zm10 7h6v-9h-6v9ZM4 20h6v-3H4v3Zm10-13h6V4h-6v3Z" /></>,
-  products: <><path d="M4 6.5 12 3l8 3.5-8 3.6-8-3.6Z"/><path d="M4 11.5 12 15l8-3.5M4 16.5 12 20l8-3.5"/></>,
+  dashboard: <><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></>,
+  products: <><path d="M4 7.5 12 4l8 3.5-8 3.7-8-3.7Z"/><path d="M4 12.5 12 16l8-3.5M4 17.3 12 21l8-3.7"/></>,
   pos: <><path d="M4 5h16v12H4zM8 21h8M12 17v4"/><path d="M8 9h8M8 13h3"/></>,
   sales: <><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6"/></>,
-  returns: <><path d="M9 7H5v-4M5 7a8 8 0 1 1-1 8"/><path d="m5 7 4-4"/></>,
+  returns: <><path d="M9 7H5V3M5 7a8 8 0 1 1-1 8"/><path d="m5 7 4-4"/></>,
   inventory: <><path d="M4 5h16M6 5v15h12V5M9 9h6M9 13h6"/></>,
   suppliers: <><path d="M3 20h18M5 20V8l7-4 7 4v12M9 20v-6h6v6"/></>,
   purchase: <><path d="M3 5h2l2 10h10l3-7H6M9 20h.01M17 20h.01"/></>,
@@ -19,21 +19,58 @@ const icons: Record<string, ReactNode> = {
   account: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,
 }
 
-function Icon({ name }: { name: string }) { return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{icons[name]}</svg> }
-function Logo() { return <svg className="flow-logo" aria-hidden="true" viewBox="0 0 40 40"><path d="M8 10h19c3 0 5 2 5 5s-2 5-5 5H13c-3 0-5 2-5 5s2 5 5 5h19"/><circle cx="8" cy="10" r="2.5"/><circle cx="32" cy="30" r="2.5"/></svg> }
+function Icon({ name }: { name: string }) {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{icons[name]}</svg>
+}
+
+function Logo() {
+  return <svg className="flow-logo" aria-hidden="true" viewBox="0 0 42 42" fill="none"><path d="M9 11h20c3.3 0 6 2.7 6 6s-2.7 6-6 6H15c-3.3 0-6 2.7-6 6s2.7 6 6 6h18"/><circle cx="9" cy="11" r="2.4"/><circle cx="33" cy="35" r="2.4"/></svg>
+}
+
+function LogoutIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M10 5H5v14h5"/><path d="M14 8l4 4-4 4M18 12H9"/></svg>
+}
 
 export function AppShell({ user, currentPath, title, nav, logout, children }: { user: AuthUser; currentPath: string; title: string; nav: NavItem[]; logout: () => Promise<void>; children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('stockflow-sidebar') === 'collapsed')
   const [drawer, setDrawer] = useState(false)
+
   useEffect(() => { setDrawer(false) }, [currentPath])
   useEffect(() => { localStorage.setItem('stockflow-sidebar', collapsed ? 'collapsed' : 'expanded') }, [collapsed])
-  return <div className={`app-shell ${collapsed ? 'sidebar-collapsed' : ''} ${drawer ? 'drawer-open' : ''}`}>
+
+  const sections = [...new Set(nav.map(item => item.section))]
+  const navigationLocked = user.must_change_password
+
+  return <div className={`app-shell ${collapsed ? 'sidebar-collapsed' : ''} ${drawer ? 'drawer-open' : ''} ${navigationLocked ? 'navigation-locked' : ''}`}>
     <aside className="sidebar" aria-label="Application navigation">
-      <div className="sidebar-brand"><a href={user.role === 'ADMIN' ? '/dashboard' : '/pos'} aria-label="StockFlow home"><Logo/><span><b>StockFlow</b><small>Inventory management</small></span></a><button className="sidebar-toggle" onClick={() => setCollapsed(x => !x)} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>‹</button></div>
-      <nav aria-label="Main navigation">{[...new Set(nav.map(x => x.section))].map(section => <div className="nav-section" key={section}><p>{section}</p>{nav.filter(x => x.section === section && x.roles.includes(user.role)).map(item => <a href={item.path} className={currentPath === item.path ? 'active' : ''} key={item.path} title={collapsed ? item.label : undefined}><Icon name={item.icon}/><span>{item.label}</span></a>)}</div>)}</nav>
-      <div className="sidebar-account"><a href="/account" className={currentPath === '/account' ? 'active' : ''}><span className="avatar">{user.display_name.slice(0, 2).toUpperCase()}</span><span><b>{user.display_name}</b><small>{user.role.toLowerCase()}</small></span></a><button onClick={() => void logout()} title="Log out"><span className="logout-icon">↗</span><span>Log out</span></button></div>
+      <div className="sidebar-brand">
+        <a href={navigationLocked ? '/account' : user.role === 'ADMIN' ? '/dashboard' : '/pos'} aria-label="StockFlow home"><span className="brand-mark"><Logo/></span><span className="brand-copy"><b>StockFlow</b><small>Inventory management</small></span></a>
+        <button className="sidebar-toggle" onClick={() => setCollapsed(value => !value)} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>‹</button>
+      </div>
+
+      {navigationLocked && <div className="sidebar-security-note"><span aria-hidden="true">●</span><div><strong>Setup required</strong><small>Change your temporary password to unlock StockFlow.</small></div></div>}
+
+      <nav aria-label="Main navigation">
+        {sections.map(section => <section className="nav-section" key={section}><p>{section}</p>{nav.filter(item => item.section === section && item.roles.includes(user.role)).map(item => <a href={navigationLocked ? '/account' : item.path} aria-disabled={navigationLocked || undefined} className={`${currentPath === item.path ? 'active' : ''} ${navigationLocked ? 'locked' : ''}`.trim()} key={item.path} title={navigationLocked ? 'Change your password to unlock this page' : collapsed ? item.label : undefined} onClick={navigationLocked ? (event) => event.preventDefault() : undefined}><Icon name={item.icon}/><span>{item.label}</span><i aria-hidden="true">{navigationLocked ? '•' : '›'}</i></a>)}</section>)}
+      </nav>
+
+      <div className="sidebar-account">
+        <a href="/account" className={currentPath === '/account' ? 'active' : ''}><span className="avatar">{user.display_name.slice(0, 2).toUpperCase()}</span><span><b>{user.display_name}</b><small>{user.role.toLowerCase()}</small></span></a>
+        <button onClick={() => void logout()} title="Log out"><span className="logout-icon">↗</span><span>Log out</span></button>
+      </div>
     </aside>
+
     <button className="drawer-backdrop" aria-label="Close navigation" onClick={() => setDrawer(false)}/>
-    <div className="workspace"><header className="topbar"><button className="menu-button" onClick={() => setDrawer(true)} aria-label="Open navigation">☰</button><div><span>StockFlow</span><strong className="topbar-title">{title}</strong></div><a className="topbar-account" href="/account"><span className="avatar">{user.display_name.slice(0, 2).toUpperCase()}</span><span>{user.display_name}<small>{user.role}</small></span></a></header><main>{children}</main></div>
+
+    <div className="workspace">
+      <header className="topbar">
+        <button className="menu-button" onClick={() => setDrawer(true)} aria-label="Open navigation">☰</button>
+        <div className="topbar-context"><span>StockFlow</span><strong className="topbar-title">{title}</strong></div>
+        <div className="topbar-spacer"/>
+        <a className="topbar-account" href="/account"><span className="avatar">{user.display_name.slice(0, 2).toUpperCase()}</span><span>{user.display_name}<small>{user.role}</small></span><b aria-hidden="true">⌄</b></a>
+        <button type="button" className="topbar-logout" onClick={() => void logout()} aria-label="Log out" title="Log out"><LogoutIcon/><span>Log out</span></button>
+      </header>
+      <main>{children}</main>
+    </div>
   </div>
 }

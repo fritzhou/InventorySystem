@@ -1,0 +1,359 @@
+/* Final StockFlow UI consistency pass.
+   Loaded last so legacy phase styles cannot flatten the newer card-based UI. */
+
+:root {
+  --ui-radius-xl: 20px;
+  --ui-radius-lg: 16px;
+  --ui-radius-md: 12px;
+  --ui-border: #e8e9f1;
+  --ui-muted-surface: #fafafe;
+  --ui-shadow: 0 10px 30px rgb(28 31 53 / 6%);
+  --ui-shadow-soft: 0 4px 16px rgb(28 31 53 / 5%);
+}
+
+/* Page title blocks: every workspace should start with the same floating card. */
+.page-heading {
+  width: 100%;
+  min-height: 0 !important;
+  height: auto !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 0 0 20px !important;
+  padding: 22px 24px !important;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: var(--ui-radius-xl) !important;
+  background: #fff !important;
+  box-shadow: var(--ui-shadow-soft) !important;
+}
+.page-heading > div:first-child { min-width: 0; }
+.page-heading .eyebrow { display: block; margin-bottom: 6px; }
+.page-heading h1 {
+  margin: 0 0 7px !important;
+  font-size: clamp(28px, 3vw, 38px) !important;
+  line-height: 1.05;
+}
+.page-heading p { margin: 0 !important; line-height: 1.55; }
+.heading-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.heading-actions .button { white-space: nowrap; }
+
+/* A single rounded language for all surfaces. */
+.card,
+.metric-card,
+.overview-card,
+.catalog-summary > div,
+.expense-overview > article,
+.expense-overview > aside,
+.report-context,
+.notice-state,
+.error,
+.empty-state {
+  border-radius: var(--ui-radius-lg) !important;
+}
+.card,
+.metric-card,
+.overview-card,
+.catalog-summary > div,
+.expense-overview > article,
+.expense-overview > aside {
+  border-color: var(--ui-border) !important;
+  box-shadow: var(--ui-shadow-soft) !important;
+}
+.product-list-card,
+.categories-card,
+.product-picker,
+.cart-panel,
+.history-list,
+.movement-list,
+.expense-workspace,
+.category-manager,
+.report-card,
+.profile-card,
+.security-card,
+.user-table,
+.receipt,
+.return-summary,
+.receiving-card {
+  overflow: hidden;
+  border-radius: var(--ui-radius-xl) !important;
+}
+
+/* Controls should look like they belong to the same product. */
+.button,
+input,
+select,
+textarea,
+.icon-button,
+.menu-button {
+  border-radius: var(--ui-radius-md) !important;
+}
+.button {
+  min-height: 42px;
+  padding-inline: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  line-height: 1.15;
+}
+.button.primary,
+.scan-button { box-shadow: 0 7px 18px rgb(91 67 232 / 16%); }
+.button.secondary { box-shadow: 0 2px 7px rgb(28 31 53 / 4%); }
+input,
+select,
+textarea { min-width: 0; }
+
+/* Replace the square text glyph in the POS scan button with a clean CSS icon. */
+.scan-button {
+  font-size: 0;
+  min-width: 150px;
+}
+.scan-button::before {
+  content: '';
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  border: 2px solid currentColor;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 3px transparent;
+}
+.scan-button::after { content: 'Scan Barcode'; font-size: 13px; font-weight: 700; }
+
+/* Standalone filter/tool cards. Flex wrapping prevents action buttons escaping the card. */
+.history-filters,
+.report-toolbar,
+.audit-toolbar {
+  width: 100%;
+  margin: 0 0 18px !important;
+  padding: 18px !important;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: var(--ui-radius-xl) !important;
+  background: #fff !important;
+  box-shadow: var(--ui-shadow-soft) !important;
+}
+.history-filters {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.history-filters > * { min-width: 0; }
+.history-filters label {
+  flex: 1 1 150px;
+  color: #555c71 !important;
+  font-size: 12px;
+  font-weight: 700;
+}
+.history-filters .history-search { flex: 2 1 250px; }
+.history-filters label input,
+.history-filters label select { margin-top: 7px; }
+.history-filters > .button {
+  flex: 0 1 132px;
+  min-width: 118px;
+}
+
+/* Product catalog: inset toolbar instead of a square strip attached to the table. */
+.catalog-summary { gap: 14px !important; }
+.catalog-summary > div { padding: 15px 17px !important; }
+.catalog-card-heading,
+.pos-panel-heading,
+.cart-heading,
+.section-heading,
+.panel-heading { min-width: 0; }
+.product-list-card .catalog-card-heading {
+  padding: 20px 20px 14px;
+  border-bottom: 0 !important;
+}
+.product-list-card .catalog-toolbar {
+  width: auto;
+  margin: 0 16px 16px;
+  padding: 14px;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: var(--ui-radius-lg) !important;
+  background: var(--ui-muted-surface) !important;
+}
+.product-list-card .active-filters {
+  margin: -5px 16px 14px;
+  border-radius: 10px;
+}
+.categories-card { padding: 22px !important; }
+
+/* POS: make both columns read as deliberate cards and keep toolbar edges rounded. */
+.pos-layout { align-items: start; }
+.product-picker,
+.cart-panel { box-shadow: var(--ui-shadow) !important; }
+.pos-panel-heading,
+.cart-heading {
+  padding: 20px 20px 14px !important;
+  border-bottom: 0 !important;
+  background: #fff !important;
+}
+.pos-search {
+  margin: 0 16px 16px;
+  padding: 10px !important;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: var(--ui-radius-lg) !important;
+  background: var(--ui-muted-surface) !important;
+}
+.pos-search input { border-radius: 10px 0 0 10px !important; }
+.pos-search .button { border-radius: 0 10px 10px 0 !important; }
+.pos-results { border-top: 1px solid #f0f1f5; }
+.result-item { padding: 17px 20px !important; }
+.cart-lines { border-top: 1px solid #f0f1f5; }
+.payment {
+  margin: 0 14px 14px;
+  padding: 18px !important;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: var(--ui-radius-lg) !important;
+  background: var(--ui-muted-surface) !important;
+}
+.change-display { border-radius: var(--ui-radius-md) !important; }
+.checkout { width: 100%; }
+
+/* History / inventory / return rows stay inside a soft rounded list card. */
+.history-list,
+.movement-list { box-shadow: var(--ui-shadow-soft) !important; }
+.sale-row,
+.movement-row,
+.po-row { padding: 17px 20px !important; }
+.pagination {
+  padding: 4px 0;
+  flex-wrap: wrap;
+}
+.pagination .button,
+.pagination > button { border-radius: 11px !important; }
+.return-summary { box-shadow: var(--ui-shadow-soft) !important; }
+
+/* Expenses: turn the previously flat filter strip into an inset card. */
+.expense-overview { gap: 14px !important; }
+.expense-workspace > .section-heading { padding: 20px 20px 12px !important; }
+.expense-workspace .expense-filters {
+  width: auto;
+  margin: 0 16px 18px !important;
+  padding: 15px !important;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: var(--ui-radius-lg) !important;
+  background: var(--ui-muted-surface) !important;
+}
+.category-manager {
+  border-left: 1px solid var(--ui-border) !important;
+  padding: 20px !important;
+  box-shadow: var(--ui-shadow-soft) !important;
+}
+.category-manager > .section-heading { padding: 0 0 10px !important; }
+.category-chips > span { border: 1px solid var(--ui-border); }
+
+/* Reports: separate date controls, context and charts into consistent rounded surfaces. */
+.report-toolbar { display: grid; gap: 12px; }
+.preset-buttons { gap: 9px !important; }
+.custom-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-muted-surface);
+}
+.custom-range label { flex: 1 1 160px; }
+.custom-range .button { flex: 0 1 110px; }
+.report-context {
+  overflow: hidden;
+  box-shadow: var(--ui-shadow-soft);
+}
+.report-card { padding: 21px !important; }
+.financial-summary { gap: 14px !important; }
+
+/* Purchasing / suppliers / admin surfaces. */
+.po-detail-header,
+.receiving-card,
+.user-table,
+.audit-toolbar {
+  border-radius: var(--ui-radius-xl) !important;
+}
+.po-detail-header {
+  padding: 20px !important;
+  border: 1px solid var(--ui-border);
+  box-shadow: var(--ui-shadow-soft);
+}
+.receiving-card {
+  border-left: 1px solid var(--ui-border) !important;
+  box-shadow: var(--ui-shadow-soft);
+}
+.audit-toolbar { align-items: flex-end !important; }
+.audit-toolbar label { min-width: 0; }
+.user-table { border: 1px solid var(--ui-border); background: #fff; box-shadow: var(--ui-shadow-soft); }
+
+/* Account/security and dialogs. */
+.profile-card,
+.security-card { box-shadow: var(--ui-shadow-soft) !important; }
+.modal {
+  border-radius: var(--ui-radius-xl) !important;
+  border: 1px solid var(--ui-border) !important;
+}
+.form-note,
+.notice,
+.success-note,
+.stock-preview { border-radius: var(--ui-radius-md) !important; }
+
+@media (max-width: 1180px) {
+  .history-filters .history-search { flex-basis: 100%; }
+  .history-filters label { flex: 1 1 calc(33.333% - 12px); }
+  .history-filters > .button { flex: 1 1 140px; }
+}
+
+@media (max-width: 900px) {
+  .page-heading { align-items: flex-start; }
+  .history-filters label { flex: 1 1 calc(50% - 12px); }
+  .history-filters .history-search { flex-basis: 100%; }
+  .history-filters > .button { flex: 1 1 calc(50% - 12px); }
+  .audit-toolbar { align-items: stretch !important; }
+}
+
+@media (max-width: 767px) {
+  .page-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 16px;
+    padding: 18px !important;
+    border-radius: 17px !important;
+  }
+  .page-heading h1 { font-size: 28px !important; }
+  .heading-actions { width: 100%; justify-content: stretch; }
+  .heading-actions .button { flex: 1 1 150px; }
+  .history-filters { padding: 15px !important; }
+  .history-filters label,
+  .history-filters .history-search { flex-basis: 100%; }
+  .history-filters > .button { flex: 1 1 calc(50% - 6px); }
+  .product-list-card .catalog-toolbar,
+  .expense-workspace .expense-filters { margin-inline: 12px !important; }
+  .pos-panel-heading,
+  .cart-heading { padding: 17px 15px 12px !important; }
+  .pos-search { margin: 0 12px 12px; }
+  .payment { margin: 0 10px 10px; padding: 16px !important; }
+  .report-card { padding: 17px !important; }
+  .custom-range { align-items: stretch; }
+  .custom-range .button { flex: 1 1 100%; }
+}
+
+@media (max-width: 430px) {
+  .page-heading { padding: 16px !important; }
+  .page-heading h1 { font-size: 26px !important; }
+  .heading-actions { display: grid; grid-template-columns: 1fr; }
+  .heading-actions .button,
+  .history-filters > .button { width: 100%; flex-basis: 100%; }
+  .scan-button { min-width: 0; }
+  .preset-buttons { grid-template-columns: 1fr 1fr !important; }
+  .sale-row,
+  .movement-row,
+  .po-row { border-radius: 14px !important; }
+}
