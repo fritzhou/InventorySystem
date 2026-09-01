@@ -157,39 +157,48 @@ export function BarcodeScanner({ onDetected }: BarcodeScannerProps) {
       frame = requestAnimationFrame(scan)
     }
 
+    const startCompat = async () => {
+      const Html5Qrcode = await loadHtml5Qrcode()
+      if (cancelled) return
+      const cameras = await Html5Qrcode.getCameras()
+      if (!cameras.length) throw new Error('No camera found')
+      const scanner = new Html5Qrcode(readerId, { verbose: false })
+      compatScannerRef.current = scanner
+      setEngine('compat')
+      await scanner.start(
+        preferredCamera(cameras).id,
+        { fps: 12, aspectRatio: 16 / 9 },
+        finish,
+        () => undefined,
+      )
+      if (cancelled) { await stopCompat(); return }
+      setState('ready')
+    }
+
     const start = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
         setState('unavailable')
         return
       }
 
-      try {
-        const Html5Qrcode = await loadHtml5Qrcode()
-        if (cancelled) return
-        const cameras = await Html5Qrcode.getCameras()
-        if (!cameras.length) throw new Error('No camera found')
-        const scanner = new Html5Qrcode(readerId, { verbose: false })
-        compatScannerRef.current = scanner
-        setEngine('compat')
-        await scanner.start(
-          preferredCamera(cameras).id,
-          { fps: 12, aspectRatio: 16 / 9 },
-          finish,
-          () => undefined,
-        )
-        if (cancelled) { await stopCompat(); return }
-        setState('ready')
-        return
-      } catch (error) {
-        await stopCompat()
-        if (cancelled) return
-        if (permissionDenied(error)) { setState('denied'); return }
+      if (window.BarcodeDetector) {
+        try {
+          await startNative()
+          return
+        } catch (error) {
+          stopNative()
+          if (cancelled) return
+          if (permissionDenied(error)) {
+            setState('denied')
+            return
+          }
+        }
       }
 
       try {
-        await startNative()
+        await startCompat()
       } catch (error) {
-        stopNative()
+        await stopCompat()
         if (cancelled) return
         setState(permissionDenied(error) ? 'denied' : 'unavailable')
       }
