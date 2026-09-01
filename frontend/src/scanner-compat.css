@@ -1,0 +1,84 @@
+.camera-preview {
+  position: relative;
+  overflow: hidden;
+}
+
+.compat-camera-preview,
+.native-camera-preview {
+  width: 100%;
+  min-height: 320px;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.compat-camera-preview video,
+.compat-camera-preview canvas,
+.native-camera-preview {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 320px;
+  object-fit: cover;
+}
+
+.camera-engine-native .compat-camera-preview {
+  display: none;
+}
+
+.native-camera-preview {
+  display: none;
+  background: #0d1327;
+}
+
+.camera-engine-native .native-camera-preview {
+  display: block;
+}
+
+.compat-camera-preview > div {
+  border: 0 !important;
+}
+
+.compat-camera-preview img {
+  max-width: 100%;
+}
+
+.scanner-photo-fallback {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 18px;
+}
+
+.scanner-photo-fallback .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  cursor: pointer;
+}
+
+.scanner-photo-fallback .button.disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+.scanner-photo-fallback input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.scanner-photo-fallback small {
+  line-height: 1.45;
+}
+
+@media (max-width: 600px) {
+  .compat-camera-preview,
+  .compat-camera-preview video,
+  .compat-camera-preview canvas,
+  .native-camera-preview {
+    min-height: 250px;
+  }
+}
