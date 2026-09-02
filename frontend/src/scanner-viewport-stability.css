@@ -1,0 +1,67 @@
+/* Keep the mobile scanner stable while browser chrome expands/collapses.
+   `svh` represents the smallest visible viewport, so Android Chrome's address bar
+   cannot make the bottom sheet jump or temporarily extend below the screen. */
+
+@media (max-width: 600px) {
+  .scanner-backdrop {
+    width: 100vw;
+    height: 100vh;
+    height: 100svh;
+    min-height: 100svh;
+    max-height: 100svh;
+    overflow: hidden;
+    place-items: end center !important;
+    align-items: end !important;
+  }
+
+  .scanner-modal {
+    width: 100% !important;
+    max-width: none !important;
+    max-height: calc(100svh - max(8px, env(safe-area-inset-top))) !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .scanner-modal > .scanner,
+  .scanner-modal > .scan-result {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .camera-preview {
+    flex: 0 0 auto;
+    height: auto !important;
+    max-height: min(38svh, 300px) !important;
+    aspect-ratio: 4 / 3;
+  }
+
+  .scanner-modal > .scanner-close {
+    flex: 0 0 auto;
+    margin-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 390px) {
+  .camera-preview {
+    max-height: min(35svh, 270px) !important;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 540px) {
+  .scanner-backdrop {
+    height: 100svh;
+    min-height: 100svh;
+    max-height: 100svh;
+  }
+
+  .scanner-modal {
+    max-height: calc(100svh - 8px) !important;
+  }
+
+  .camera-preview {
+    max-height: 42svh !important;
+    aspect-ratio: 16 / 9;
+  }
+}
